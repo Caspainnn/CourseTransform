@@ -1,3 +1,3 @@
-# CourseTransform
+# 教材转换流水线
 
-将教材 PDF 转成 Markdown，再生成教案和 PPT。各阶段在对应功能分支中推进。
+待开发。通过 CLI 串联 PDF → Markdown → 教案 → PPTX，保存中间产物、透传参数并处理异常。
