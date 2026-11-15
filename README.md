@@ -1,3 +1,3 @@
-# CourseTransform
+# 教案 → PPTX
 
-将教材 PDF 转成 Markdown，再生成教案和 PPT。各阶段在对应功能分支中推进。
+待开发。按教学环节分页，套用课件模板，排版图文并写入备注，输出 PPTX。
