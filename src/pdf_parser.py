@@ -94,18 +94,46 @@ def extract_images(
     return images
 
 
+# 小节编号标题：如 "2.1 生成对抗网络的原理"、"2.2.5 实践2-1 sin曲线样本模拟"。
+# 约束：编号段数≥2、行长有限、行尾不是页码/句读，避免把 "0.618 是黄金比例" 这类
+# 以小数开头的正文行误判为标题。
+SECTION_HEADING_RE = re.compile(r"^(\d{1,2}(?:\.\d{1,2})+)\s+\S")
+SENTENCE_END_RE = re.compile(r"[。；，,；！？]|\s\d{1,4}\s*$")
+
+
+def format_section_headings(lines: list[str], enabled: bool = True) -> list[str]:
+    """把 "x.y 标题"/"x.y.z 标题" 编号行转为 Markdown 层级标题。
+
+    章标题 "第N章" 由调用方输出为 #；此处 x.y → ##、x.y.z → ###、x.y.z.w → ####。
+    """
+    if not enabled:
+        return lines
+    out: list[str] = []
+    for line in lines:
+        s = line.strip()
+        m = SECTION_HEADING_RE.match(s)
+        if m and len(s) <= 60 and not SENTENCE_END_RE.search(s):
+            depth = m.group(1).count(".") + 1  # x.y → 2 级，x.y.z → 3 级
+            out.append("#" * min(depth, 4) + " " + s)
+        else:
+            out.append(line)
+    return out
+
+
 def insert_image_refs(
     chapter: Chapter,
     images: dict[int, list[Path]],
     image_dir_name: str,
     caption_pattern: str | None = None,
     descriptions: dict[str, str] | None = None,
+    section_headings: bool = True,
 ) -> str:
-    """把图片引用插入 md：优先放在题注行下方，保持图与正文位置对应。"""
+    """把图片引用插入 md：优先放在题注行下方，保持图与正文位置对应；
+    同时把编号小节行转为 Markdown 层级标题，保证标题排版。"""
     caption_re = re.compile(caption_pattern) if caption_pattern else None
     parts: list[str] = []
     for page_no, page_text in chapter.pages:
-        lines = page_text.splitlines()
+        lines = format_section_headings(page_text.splitlines(), section_headings)
         page_images = images.get(page_no, [])
         refs = []
         for img in page_images:
@@ -139,6 +167,7 @@ def build_markdown(
     caption_pattern: str | None,
     use_vision: bool = False,
     vision_config: dict | None = None,
+    section_headings: bool = True,
 ) -> str:
     descriptions: dict[str, str] = {}
     if use_vision and vision_config and vision_config.get("enabled"):
@@ -146,7 +175,9 @@ def build_markdown(
         for paths in images.values():
             for path in paths:
                 descriptions[str(path)] = client.describe_image(path)
-    body = insert_image_refs(chapter, images, image_dir_name, caption_pattern, descriptions)
+    body = insert_image_refs(
+        chapter, images, image_dir_name, caption_pattern, descriptions, section_headings
+    )
     return f"# {chapter.title}\n\n{body}\n"
 
 
@@ -177,6 +208,7 @@ def pdf_to_markdown(pdf_path: str | Path, out_dir: str | Path, config: dict) -> 
             s1.get("caption_pattern"),
             s1.get("use_vision", False),
             config.get("vision"),
+            s1.get("section_headings", True),
         )
         out_path = Path(out_dir) / f"{sanitize_filename(chapter.title)}.md"
         write_text(out_path, md)

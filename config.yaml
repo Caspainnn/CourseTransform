@@ -34,6 +34,8 @@ stage1:
   image_format: "jpg"
   # 图题注行的匹配正则，用于把图片引用插到题注附近
   caption_pattern: "^图\\s*[0-9]+[-.][0-9]+"
+  # 小节编号标题自动转 Markdown 层级（"2.1 x"→##、"2.2.3 x"→###）；false 时保持原样
+  section_headings: true
   # 图片过滤：宽或高小于该像素的装饰性小图跳过
   min_image_size: 32
   # 是否调用视觉模型生成图片描述（需要 vision.enabled=true）

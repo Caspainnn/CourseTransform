@@ -7,10 +7,32 @@ from src.config import load_config
 from src.pdf_parser import (
     extract_chapter_pages,
     extract_images,
+    format_section_headings,
     is_chapter_title,
     pdf_to_markdown,
     sanitize_filename,
 )
+
+
+def test_format_section_headings_levels():
+    lines = [
+        "2.1 生成对抗网络的原理",
+        "2.2.5 实践2-1 sin曲线样本模拟",
+        "正文提到 0.618 是黄金比例的数值示例。",
+        "2.1 可视化的作用与图表选择 15",
+        "普通段落文字",
+    ]
+    out = format_section_headings(lines)
+    assert out[0] == "## 2.1 生成对抗网络的原理"
+    assert out[1] == "### 2.2.5 实践2-1 sin曲线样本模拟"
+    assert out[2] == lines[2]  # 正文小数开头不改写
+    assert out[3] == lines[3]  # 行尾带页码（目录/页脚）不改写
+    assert out[4] == lines[4]
+
+
+def test_format_section_headings_disabled():
+    lines = ["2.1 概述"]
+    assert format_section_headings(lines, enabled=False) == lines
 
 
 def make_pdf(path):

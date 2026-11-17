@@ -28,6 +28,8 @@ DEFAULT_CONFIG: dict = {
         "image_prefix": "image-",
         "image_format": "jpg",
         "caption_pattern": r"^图\s*[0-9]+[-–.][0-9]+",
+        # 小节编号标题（如 "2.1 概述"、"2.2.3 实现"）自动转 Markdown 层级 ##/###
+        "section_headings": True,
         "min_image_size": 32,
         "use_vision": False,
     },
