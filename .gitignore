@@ -7,3 +7,5 @@ venv/
 output/
 !demo_materials/**
 .DS_Store
+# macOS Vision OCR 编译产物（本地 swiftc 生成，跨平台不可用）
+scripts/ocr_vision
