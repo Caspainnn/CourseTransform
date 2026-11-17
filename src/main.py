@@ -60,11 +60,13 @@ def run_stage2(args, config: dict) -> Path:
 
 def run_pipeline(args, config: dict) -> Path:
     """stage1 + stage2 串联：教材 PDF → 章节 md → 教案 docx。"""
+    from src.pdf_parser import NO_CHAPTER_KEY
+
     md_files = run_stage1(args, config)
     if not md_files:
         raise RuntimeError("stage1 未产出任何 Markdown 文件")
-    target = None
     if args.chapter:
+        target = None
         for path in md_files:
             if args.chapter in path.name:
                 target = path
@@ -72,7 +74,10 @@ def run_pipeline(args, config: dict) -> Path:
         if target is None:
             raise RuntimeError(f"未找到文件名含 {args.chapter} 的章节 Markdown")
     else:
-        target = md_files[0]
+        # 默认跳过"全书.md"（章节标题前的前置页，通常只有封面/目录、无正文），
+        # 避免把无正文依据的内容送入 stage2 导致验证 FAIL
+        chapter_files = [p for p in md_files if p.stem != NO_CHAPTER_KEY]
+        target = chapter_files[0] if chapter_files else md_files[0]
     logger.info(f"pipeline：选用 {target.name} 进入 stage2")
     args.knowledge = str(target)
     return run_stage2(args, config)
