@@ -51,6 +51,15 @@ python -m src.main stage1 --pdf 教材.pdf --out output/stage1
 python -m src.main pipeline --pdf 教材.pdf --template 模板.docx --out output
 ```
 
+## 网页演示（demo）
+
+```bash
+python webapp.py            # 打开 http://localhost:8080
+```
+
+页面支持：选择教材 md 与模板 docx 路径、切换离线演示/真实模型模式、实时滚动查看生成日志、在线预览教案中间稿与验证报告、下载教案.docx。
+离线演示模式使用 MockLLMClient（无需网络与 Key）；真实模型模式需在 `.env` 配置 `LLM_API_KEY`（当前默认 DeepSeek，可在 config.yaml 更换）。
+
 ## 技术方案要点
 
 1. **模板解析**：遍历 `document.element.body` 的 `CT_P`/`CT_Tbl` 交错子节点，块顺序与表格结构不丢失。

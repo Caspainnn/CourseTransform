@@ -7,9 +7,9 @@ import yaml
 
 def setup_logging(name: str = "course_transform", level: str = "INFO", log_file: str | Path | None = None) -> logging.Logger:
     logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     if logger.handlers:
         return logger
-    logger.setLevel(getattr(logging, level.upper(), logging.INFO))
     formatter = logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
     stream_handler = logging.StreamHandler(sys.stdout)
     stream_handler.setFormatter(formatter)
