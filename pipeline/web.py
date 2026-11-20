@@ -532,7 +532,7 @@ def create_blueprint(data_dir):
         if not 0 < index <= len(results):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
         files = results[index - 1].get('files') or {}
-        if kind not in ('plan', 'review', 'acceptance', 'template_guide', 'run', 'markdown'):
+        if kind not in ('plan', 'review', 'acceptance', 'image_report', 'template_guide', 'run', 'markdown'):
             raise Problem('文件类型不支持', 400)
         path = Path(str(files.get(kind) or ''))
         if not path.is_file():
@@ -544,6 +544,8 @@ def create_blueprint(data_dir):
         text = service.lessons.log(ident)
         if text is None:
             raise Problem('日志不存在', 404, 'E_NOT_FOUND')
+        if request.args.get('format') == 'text':
+            return text, 200, {'Content-Type': 'text/plain; charset=utf-8'}
         return jsonify(log=text.splitlines()[-400:])
 
     @bp.post('/lesson/jobs/<ident>/retry')

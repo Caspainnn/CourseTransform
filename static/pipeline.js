@@ -431,6 +431,11 @@
     $("#wordJobMeta").textContent = `${job.id} · ${fmtTime(job.created_at)}`;
     $("#wordError").hidden = !job.error;
     $("#wordError").textContent = job.error || "";
+    const logBox = $("#wordLog");
+    if (job.has_log){
+      logBox.hidden = false;
+      logBox.innerHTML = `<a href="/api/pipeline/lesson/jobs/${esc(job.id)}/log?format=text" target="_blank" rel="noopener">查看本次运行日志</a>`;
+    } else { logBox.hidden = true; logBox.innerHTML = ""; }
     const total = job.progress?.total || 0;
     const current = job.progress?.current || 0;
     $("#wordProgress").hidden = !total && !["queued","running"].includes(job.status);
@@ -444,7 +449,7 @@
         <div class="job-meta">${chapter.validation?.metrics ? `${chapter.validation.metrics.periods || 0} 学时 · 引用 ${chapter.validation.metrics.citations ?? 0} 条 · 图 ${chapter.validation.metrics.figures ?? 0} 张` : ""}</div>
         ${chapter.error ? `<div class="job-meta" style="color:#a13c2a">${esc(chapter.error)}</div>` : ""}
         ${(chapter.validation?.issues || []).length ? `<div class="job-meta" style="color:#96602e">${esc(chapter.validation.issues.map(x=>x.message).join("；").slice(0,220))}</div>` : ""}
-        ${chapter.downloads ? `<div class="bar-actions">${Object.entries(chapter.downloads).map(([key,url])=>`<a class="btn btn-sm" href="${esc(url)}" download>${key==="plan"?"课时 JSON":key==="review"?"质检报告":"验收报告"}</a>`).join("")}</div>` : ""}
+        ${chapter.downloads ? `<div class="bar-actions">${Object.entries(chapter.downloads).map(([key,url])=>`<a class="btn btn-sm" href="${esc(url)}" download>${key==="plan"?"课时 JSON":key==="review"?"质检报告":key==="acceptance"?"验收报告":"配图说明"}</a>`).join("")}</div>` : ""}
       </div>`).join("") : '<div class="empty-ref">生成后在此查看章节与学时状态</div>';
 
     const files = job.docx_files || [];

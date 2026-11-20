@@ -251,7 +251,7 @@ class LessonJobManager:
             chapter['previewUrl'] = f'/api/pipeline/lesson/jobs/{job["id"]}/preview/{chapter_index}'
             chapter['downloads'] = {
                 label: f'/api/pipeline/lesson/jobs/{job["id"]}/file/{chapter_index}/{key}'
-                for label, key in (('plan', 'plan'), ('review', 'review'), ('acceptance', 'acceptance'))
+                for label, key in (('plan', 'plan'), ('review', 'review'), ('acceptance', 'acceptance'), ('image_report', 'image_report'))
                 if files.get(key)
             }
         public['source'] = job.get('source') or {}
