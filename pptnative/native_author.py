@@ -567,6 +567,27 @@ def fit_text_to_frames(svg, indices=None):
     return ET.tostring(root, encoding="unicode")
 
 
+def strip_canvas_backgrounds(svg):
+    """New full-canvas rects conflict with master/layout paint order; keep master art."""
+    root = ET.fromstring(svg)
+    try:
+        bounds = [float(x) for x in root.get("viewBox", "0 0 1280 720").split()]
+    except ValueError:
+        return svg
+    removed = False
+    for node in list(root):
+        if node.tag.rsplit("}", 1)[-1] != "rect" or node.get("data-pptx-source-ref"):
+            continue
+        try:
+            box = [float(node.get(k, 0)) for k in ("x", "y", "width", "height")]
+        except (TypeError, ValueError):
+            continue
+        if box == bounds and node.get("fill"):
+            root.remove(node)
+            removed = True
+    return ET.tostring(root, encoding="unicode") if removed else svg
+
+
 def fit_images_to_canvas(svg, margin=12):
     """Keep newly composed images inside the slide canvas without changing bytes."""
     root = ET.fromstring(svg)
@@ -1360,7 +1381,7 @@ def run(job, version, contract, source, parent=None):
                 root = ET.fromstring(base)
                 root.extend(fragment)
                 runtime_ids(root)
-                fitted = fit_images_to_canvas(ET.tostring(root, encoding="unicode"))
+                fitted = fit_images_to_canvas(strip_canvas_backgrounds(ET.tostring(root, encoding="unicode")))
                 root = ET.fromstring(fitted)
                 validate_text_capacity(ET.tostring(root, encoding="unicode"), page["title"], strict_vertical=True, check_canvas=True)
             # Reject semantic deletion before exporting; actual PPTX coverage is
@@ -1468,7 +1489,7 @@ def run(job, version, contract, source, parent=None):
             root = ET.fromstring(base)
             root.extend(content_nodes(result["content_svg"], base))
             runtime_ids(root)
-            svg = fit_images_to_canvas(ET.tostring(root, encoding="unicode"))
+            svg = fit_images_to_canvas(strip_canvas_backgrounds(ET.tostring(root, encoding="unicode")))
         result["notes"] = retained_notes(result["notes"], page, material)
         return page["id"], svg, result
 
