@@ -578,10 +578,9 @@
     });
   }
   function hidePipelineViews(){
-    const pdf=$("#view-pdf"), word=$("#view-word"), settings=$("#view-settings");
+    const pdf=$("#view-pdf"), word=$("#view-word");
     if(pdf) pdf.hidden = true;
     if(word) word.hidden = true;
-    if(settings) settings.hidden = true;
   }
   async function showDrafts(){
     try{await settleCurrent();}catch(error){report(error);return;}
@@ -605,40 +604,102 @@
     window.scrollTo({top:0, behavior:"smooth"});
   }
 
-  function renderSettings(){
-    $("#settingsKbCount").textContent = KB_DATA.length;
-    const list = $("#settingsKbList");
-    list.innerHTML = KB_DATA.length ? KB_DATA.slice(0, 8).map(item =>
-      `<div>${esc(item.title)} · ${item.type === "jiaoan" ? "教案" : "教材"}</div>`
-    ).join("") : '<div class="empty-ref">暂无资料</div>';
+  const accountPopover = $("#accountPopover"), accountModal = $("#accountModal");
+  function renderAccountSummary(){
+    $("#apKbCount").textContent = KB_DATA.length + " 份";
+    $("#apKbBadge").textContent = String(KB_DATA.length);
+    if(!KB_DATA.length) refreshKnowledge().then(renderAccountSummary).catch(()=>{});
     fetch("/api/health").then(response=>response.json()).then(health=>{
-      const model = $("#settingsModelState"), native = $("#settingsNativeState");
+      const model = $("#apModelState");
+      if(model) model.textContent = health.modelConfigured ? "已配置" : "未配置";
+    }).catch(()=>{ const model = $("#apModelState"); if(model) model.textContent = "未知"; });
+  }
+  function openAccountPopover(){
+    $("#btnLocalUser").setAttribute("aria-expanded", "true");
+    accountPopover.hidden = false;
+    renderAccountSummary();
+    setTimeout(()=>{ const first = accountPopover.querySelector("[data-account-panel]"); if(first) first.focus(); }, 50);
+  }
+  function closeAccountPopover(){
+    accountPopover.hidden = true;
+    $("#btnLocalUser").setAttribute("aria-expanded", "false");
+  }
+  function closeAccountModal(){
+    accountModal.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+  function renderAccountModal(kind){
+    const body = $("#accountModalBody");
+    if(kind === "user"){
+      body.innerHTML = `
+        <div class="acct-user"><div class="avatar" aria-hidden="true">本</div><div><b>本机用户</b><span>本地教学工作台</span></div></div>
+        <div class="acct-row"><span>账户体系</span><b>未启用（本机单用户）</b></div>
+        <div class="acct-row"><span>数据位置</span><b>项目 data/ 目录</b></div>
+        <div class="acct-row"><span>资料范围</span><b>仅本机 · 无云同步</b></div>
+        <p class="acct-note">不提供账号、多租户或云同步；上传资料与生成产物不会离开本机（模型调用除外，由服务端配置决定）。</p>`;
+      return;
+    }
+    if(kind === "knowledge"){
+      const rows = KB_DATA.length ? KB_DATA.map(item =>
+        `<div class="acct-list-row"><span>${esc(item.title)}</span><em>${item.type === "jiaoan" ? "教案" : "教材"}</em></div>`
+      ).join("") : '<div class="empty-ref">暂无资料</div>';
+      body.innerHTML = `
+        <div class="acct-toolbar"><span>共 <b>${KB_DATA.length}</b> 份资料</span><button class="btn btn-sm" id="acctKbRefresh" type="button">刷新</button></div>
+        <div class="acct-list">${rows}</div>
+        <p class="acct-note">知识库用于 PPT 阶段选材；教案阶段可在“教材与模板”中从知识库选择 Markdown 教材。</p>`;
+      $("#acctKbRefresh").addEventListener("click", async ()=>{
+        try{ await refreshKnowledge(); renderAccountModal("knowledge"); renderAccountSummary(); }
+        catch(error){ report(error); }
+      });
+      if(!KB_DATA.length) refreshKnowledge().then(()=>renderAccountModal("knowledge")).catch(report);
+      return;
+    }
+    body.innerHTML = `
+      <div class="acct-row"><span>模型服务</span><b id="acctModelState">检查中…</b></div>
+      <div class="acct-row"><span>原生 PPT 运行时</span><b id="acctNativeState">检查中…</b></div>
+      <p class="acct-note">模型名、接口地址与密钥只在服务端 .env 读取；页面编辑功能暂未开放（占位）。</p>`;
+    fetch("/api/health").then(response=>response.json()).then(health=>{
+      const model = $("#acctModelState"), native = $("#acctNativeState");
       if(model) model.textContent = health.modelConfigured ? "已配置（服务端 .env）" : "未配置";
       if(native) native.textContent = health.nativeRuntime ? "已就绪" : "不可用";
     }).catch(()=>{
-      const model = $("#settingsModelState"), native = $("#settingsNativeState");
+      const model = $("#acctModelState"), native = $("#acctNativeState");
       if(model) model.textContent = "状态未知";
       if(native) native.textContent = "状态未知";
     });
   }
-  async function showSettings(){
-    try{ await settleCurrent(); }catch(error){ report(error); }
-    pollEpoch++;
-    ["view-drafts","view-ppt","view-wip","view-pdf","view-word"].forEach(id=>{
-      const view = document.getElementById(id);
-      if(view) view.hidden = true;
-    });
-    $("#view-settings").hidden = false;
-    $("#taskStatus").hidden = true;
-    $("#taskActions").hidden = true;
-    $("#taskError").hidden = true;
-    $("#crumbCurrent").innerHTML = "<b>本机设置</b>";
-    $$(".nav-item").forEach(b=>{ b.classList.remove("active"); b.removeAttribute("aria-current"); });
-    renderSettings();
-    try{ await refreshKnowledge(); renderSettings(); }catch(error){ /* keep cached list */ }
-    history.replaceState(null, "", "?settings=1");
-    window.scrollTo({top:0, behavior:"smooth"});
+  function openAccountModal(kind){
+    const meta = {
+      user:{title:"用户信息", sub:"本机账户与数据位置"},
+      knowledge:{title:"知识库", sub:"教案与教材资料"},
+      model:{title:"模型管理", sub:"服务端模型与运行时状态"}
+    }[kind];
+    closeAccountPopover();
+    $("#accountModalTitle").textContent = meta.title;
+    $("#accountModalSub").textContent = meta.sub;
+    $("#accountModalHint").textContent = kind === "knowledge" ? "本机资料库" : "本机设置";
+    accountModal.classList.add("open");
+    document.body.style.overflow = "hidden";
+    renderAccountModal(kind);
+    setTimeout(()=>$("#accountModalClose").focus(), 60);
   }
+  $("#btnLocalUser").addEventListener("click", (event)=>{
+    event.stopPropagation();
+    if(accountPopover.hidden) openAccountPopover(); else closeAccountPopover();
+  });
+  accountPopover.addEventListener("click", (event)=>{
+    const entry = event.target.closest("[data-account-panel]");
+    if(entry) openAccountModal(entry.dataset.accountPanel);
+  });
+  $("#accountModalClose").addEventListener("click", closeAccountModal);
+  $("#accountModalDone").addEventListener("click", closeAccountModal);
+  accountModal.addEventListener("click", (event)=>{ if(event.target === accountModal) closeAccountModal(); });
+  document.addEventListener("click", (event)=>{
+    if(!accountPopover.hidden && !event.target.closest("#accountPopover") && !event.target.closest("#btnLocalUser")) closeAccountPopover();
+  });
+  document.addEventListener("keydown", (event)=>{
+    if(event.key === "Escape"){ closeAccountPopover(); closeAccountModal(); }
+  });
 
   const WIP_META = {
     pdf:{eyebrow:"Workflow 01", title:"教材 PDF 转 MD", desc:"把扫描版或文字版教材转成结构化的 Markdown，保留章节、注释与图表位置。"},
@@ -901,9 +962,6 @@
   document.addEventListener("input",e=>{if(e.target.closest("#panel-1")){markFormDirty();clearTimeout(formTimer);formTimer=setTimeout(()=>persistForm().catch(report),650);}});
   document.addEventListener("click",e=>{if(e.target.closest(".style-opt,.chip-btn,#tplRemove,#kbConfirm,[data-remove-local],[data-remove-ref]")){markFormDirty();clearTimeout(formTimer);formTimer=setTimeout(()=>persistForm().catch(report),150);}});
   $(".icon-btn").addEventListener("click",()=>toast("方向键切换预览；先确认大纲，再生成；历史版本可随时查看。"));
-  $("#btnLocalUser").addEventListener("click", ()=>showSettings());
-  $("#settingsBack").addEventListener("click", ()=>showDrafts());
-  $("#settingsKbRefresh").addEventListener("click", ()=>refreshKnowledge().then(renderSettings).catch(report));
 
   /* ================= 初始化 ================= */
   setCount(12);
@@ -915,10 +973,8 @@
   goStep(1);
   const saved=new URLSearchParams(location.search).get("task")||localStorage.getItem("pptnative-task");
   const initialFeature = INITIAL_PARAMS.get("feature");
-  const initialSettings = INITIAL_PARAMS.get("settings");
-  showDrafts().then(()=>{ if(saved && !initialFeature && !initialSettings) openDraft(saved); }).finally(()=>{
-    if(initialSettings) setTimeout(()=>showSettings(), 0);
-    else if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
+  showDrafts().then(()=>{ if(saved && !initialFeature) openDraft(saved); }).finally(()=>{
+    if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
   });
   refreshKnowledge().catch(report);
   if(window.innerWidth <= 860){
