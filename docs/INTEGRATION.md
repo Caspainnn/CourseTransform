@@ -39,6 +39,7 @@
 - `pipeline/lesson_jobs.py`：复用 `jiaoan.web._run_job`，保留 jiaoan 的模型配置、拆学时、质检与报告；任务快照写入 `job.json`（排除 Key），重启恢复为 `interrupted`，重试复制输入后新建任务。
 - `pipeline/artifacts.py` + `pipeline/web.py`：PDF 章节/教案学时登记不可变 artifact；交接把学时 DOCX 与教材 MD+原图写入知识库，保留 `origin` 与 SHA；质检未通过学时禁止交接（409）。
 - `static/index.html` + `static/pipeline.js`：新增 `#view-pdf`、`#view-word`，沿用 stage3 设计令牌；`workbench.js` 仅增加视图隐藏、`showPptWithRefs` 与深链接入口，不改变 PPT 三步流程。
-- 测试：`82 passed, 1 skipped`（含 5 项新增阶段集成测试；stage3 原 54 项与 jiaoan 23 项全部保留）。
+- 教案页按反馈调整：模型 API 不再展示，固定使用服务端 `.env`；基础信息前置；教材/模板改为“参考资料”卡（知识库选择 + 本地上传 + 图注），知识库教材以 Markdown 复用，交接时保留原知识条目。左侧“本机用户”打开本机设置页，含用户信息、知识库、模型管理（模型编辑为占位）。
+- 测试：`83 passed, 1 skipped`（含 6 项新增阶段集成测试；stage3 原 54 项与 jiaoan 23 项全部保留）。
 - 真实运行：PDF 3 页 → 2 章；真实模型教案 4 学时（2 通过、2 质检失败且不隐藏）；交接 3 份资料；PPT 8 页 v001 真实生成、8 张 PNG、确认下载 102,660 字节。
 - 已知限制与用户验收边界见 README 第 8 节。

@@ -81,10 +81,12 @@ JIAOAN_DISABLE_THINKING=true
 
 **② 教材 MD 转教案 Word**
 
-1. 选择 PDF→MD 产物（可多章），或上传已有 `.md`；
-2. 上传单学时模板，例如 `examples/templates/教案模板_表格式.docx`；
-3. 模型 API 可选“服务器 .env”，也可填 DeepSeek/自建兼容接口并测试连接；
-4. 填学科、年级、课时、课型、学时数等简报，生成后按学时下载 DOCX、查看中间稿与质检结果。
+1. 在“基础信息填写”里填学科、年级、课时、课型、学时数等简报；
+2. 在“教材与模板”里点“从知识库选择”选 PDF→MD 产物或知识库 Markdown 教材，点“本地上传”补教案模板 `.docx` 与配图；
+3. 模型固定使用服务端 `.env` 的默认配置，页面不展示接口与密钥；
+4. 生成后按学时下载 DOCX、查看中间稿与质检/验收结果。
+
+左侧栏底部“本机用户”可打开本机设置页，查看用户信息、知识库数量与模型/原生运行时状态；模型编辑暂为占位。
 
 **③ 教案 + 教材转 PPT**
 
@@ -123,7 +125,7 @@ data/
 ## 7. 测试与本次实测
 
 ```powershell
-python -m pytest -q          # 82 passed, 1 skipped（2026-11-20）
+python -m pytest -q          # 83 passed, 1 skipped（2026-11-20）
 python scripts/doctor.py
 node --check static/workbench.js
 node --check static/pipeline.js
@@ -160,7 +162,7 @@ jiaoan/                 教案引擎（来自“模板-->教案”提交包，�
 pptnative/ webapp/      PPT 原生制作、版本、锁（来自 stage3）
 static/                 工作台 HTML + 原生 JS（workbench.js 基线，pipeline.js 新页面）
 examples/               合成演示教材 PDF、教材 md、模板、图
-tests/                  82 项测试（含 5 项阶段集成测试）
+tests/                  83 项测试（含 6 项阶段集成测试）
 docs/                   原 stage3 文档 + docs/INTEGRATION.md
 scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```

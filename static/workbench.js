@@ -578,9 +578,10 @@
     });
   }
   function hidePipelineViews(){
-    const pdf=$("#view-pdf"), word=$("#view-word");
+    const pdf=$("#view-pdf"), word=$("#view-word"), settings=$("#view-settings");
     if(pdf) pdf.hidden = true;
     if(word) word.hidden = true;
+    if(settings) settings.hidden = true;
   }
   async function showDrafts(){
     try{await settleCurrent();}catch(error){report(error);return;}
@@ -601,6 +602,41 @@
     hidePipelineViews();
     $("#crumbCurrent").innerHTML = "<b>教案 + 教材转 PPT</b>";
     highlightNav();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  function renderSettings(){
+    $("#settingsKbCount").textContent = KB_DATA.length;
+    const list = $("#settingsKbList");
+    list.innerHTML = KB_DATA.length ? KB_DATA.slice(0, 8).map(item =>
+      `<div>${esc(item.title)} · ${item.type === "jiaoan" ? "教案" : "教材"}</div>`
+    ).join("") : '<div class="empty-ref">暂无资料</div>';
+    fetch("/api/health").then(response=>response.json()).then(health=>{
+      const model = $("#settingsModelState"), native = $("#settingsNativeState");
+      if(model) model.textContent = health.modelConfigured ? "已配置（服务端 .env）" : "未配置";
+      if(native) native.textContent = health.nativeRuntime ? "已就绪" : "不可用";
+    }).catch(()=>{
+      const model = $("#settingsModelState"), native = $("#settingsNativeState");
+      if(model) model.textContent = "状态未知";
+      if(native) native.textContent = "状态未知";
+    });
+  }
+  async function showSettings(){
+    try{ await settleCurrent(); }catch(error){ report(error); }
+    pollEpoch++;
+    ["view-drafts","view-ppt","view-wip","view-pdf","view-word"].forEach(id=>{
+      const view = document.getElementById(id);
+      if(view) view.hidden = true;
+    });
+    $("#view-settings").hidden = false;
+    $("#taskStatus").hidden = true;
+    $("#taskActions").hidden = true;
+    $("#taskError").hidden = true;
+    $("#crumbCurrent").innerHTML = "<b>本机设置</b>";
+    $$(".nav-item").forEach(b=>{ b.classList.remove("active"); b.removeAttribute("aria-current"); });
+    renderSettings();
+    try{ await refreshKnowledge(); renderSettings(); }catch(error){ /* keep cached list */ }
+    history.replaceState(null, "", "?settings=1");
     window.scrollTo({top:0, behavior:"smooth"});
   }
 
@@ -865,6 +901,9 @@
   document.addEventListener("input",e=>{if(e.target.closest("#panel-1")){markFormDirty();clearTimeout(formTimer);formTimer=setTimeout(()=>persistForm().catch(report),650);}});
   document.addEventListener("click",e=>{if(e.target.closest(".style-opt,.chip-btn,#tplRemove,#kbConfirm,[data-remove-local],[data-remove-ref]")){markFormDirty();clearTimeout(formTimer);formTimer=setTimeout(()=>persistForm().catch(report),150);}});
   $(".icon-btn").addEventListener("click",()=>toast("方向键切换预览；先确认大纲，再生成；历史版本可随时查看。"));
+  $("#btnLocalUser").addEventListener("click", ()=>showSettings());
+  $("#settingsBack").addEventListener("click", ()=>showDrafts());
+  $("#settingsKbRefresh").addEventListener("click", ()=>refreshKnowledge().then(renderSettings).catch(report));
 
   /* ================= 初始化 ================= */
   setCount(12);
@@ -876,8 +915,10 @@
   goStep(1);
   const saved=new URLSearchParams(location.search).get("task")||localStorage.getItem("pptnative-task");
   const initialFeature = INITIAL_PARAMS.get("feature");
-  showDrafts().then(()=>{ if(saved) openDraft(saved); }).finally(()=>{
-    if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
+  const initialSettings = INITIAL_PARAMS.get("settings");
+  showDrafts().then(()=>{ if(saved && !initialFeature && !initialSettings) openDraft(saved); }).finally(()=>{
+    if(initialSettings) setTimeout(()=>showSettings(), 0);
+    else if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
   });
   refreshKnowledge().catch(report);
   if(window.innerWidth <= 860){

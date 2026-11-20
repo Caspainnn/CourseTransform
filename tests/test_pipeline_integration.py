@@ -146,6 +146,33 @@ class PipelineIntegrationTests(unittest.TestCase):
             self.assertEqual(blocked.status_code, 409)
             self.assertEqual(blocked.get_json()['code'], 'E_QUALITY_FAILED')
 
+    def test_lesson_from_knowledge_refs_and_handoff_keeps_source(self):
+        pdf = self._pdf_job()
+        handoff = self.client.post('/api/pipeline/handoff/ppt',
+                                   json={'artifactId': pdf['chapters'][0]['artifactId']})
+        self.assertEqual(handoff.status_code, 200, handoff.get_data(as_text=True))
+        knowledge = [item for item in self.client.get('/api/knowledge').get_json()
+                     if item['title'].endswith('.md')]
+        self.assertTrue(knowledge)
+        ids = [item['id'] for item in knowledge]
+
+        payload = {'offline': True, 'knowledgeRefs': ids}
+        with open(TEMPLATE, 'rb') as handle:
+            response = self.client.post('/api/pipeline/lesson/jobs', content_type='multipart/form-data', data={
+                'payload': json.dumps(payload, ensure_ascii=False),
+                'templates': (handle, TEMPLATE.name),
+            })
+        self.assertEqual(response.status_code, 202, response.get_data(as_text=True))
+        job = wait_job(self.client, f"/api/pipeline/lesson/jobs/{response.get_json()['id']}", timeout=300)
+        self.assertEqual(job['source']['knowledgeRefs'], ids)
+        self.assertIn(job['status'], ('succeeded', 'partial_failed'), job.get('error'))
+        ok = next(item for item in job['docx_files'] if item['status'] in ('ok', 'ok_with_warnings'))
+        artifact = self.client.post(f"/api/pipeline/lesson/jobs/{job['id']}/artifact/{ok['index']}")
+        self.assertEqual(artifact.status_code, 201)
+        refs = self.client.post('/api/pipeline/handoff/ppt',
+                                json={'artifactId': artifact.get_json()['id']}).get_json()['refs']
+        self.assertTrue(any(ref['id'] in ids for ref in refs))
+
     def test_restart_marks_unfinished_jobs_interrupted(self):
         pdf_folder = self.tmp / 'pipeline' / 'pdf' / 'aaaaaaaaaaaa'
         pdf_folder.mkdir(parents=True)

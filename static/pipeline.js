@@ -44,9 +44,9 @@
   const state = {
     pdfFile:null, activePdf:null, pdfTimer:null,
     artifacts:[], selectedArtifacts:new Set(),
-    textbookFile:null, templates:[], images:[], imageCaptions:{},
+    textbookFile:null, templates:[], images:[], imageCaptions:{}, knowledgeRefs:[], refRows:[], knowledgeCache:[], refChoice:{artifacts:new Set(), knowledge:new Set()},
     activeLesson:null, lessonTimer:null,
-    apiPreset:"server", initialized:{pdf:false, word:false}
+    initialized:{pdf:false, word:false}
   };
 
   /* ================= PDF → MD ================= */
@@ -205,128 +205,198 @@
   });
 
   /* ================= MD → Lesson ================= */
-  const presetValues = {
-    server:{base:"", model:""},
-    deepseek:{base:"https://api.deepseek.com/v1", model:"deepseek-chat"},
-    local:{base:"http://127.0.0.1:11435/v1", model:"qwen2.5:7b"},
-    custom:{base:"", model:""}
-  };
-  $("#wordApiPreset").addEventListener("change", ()=>{
-    state.apiPreset = $("#wordApiPreset").value;
-    const preset = presetValues[state.apiPreset] || presetValues.custom;
-    $("#wordBase").value = preset.base;
-    $("#wordModel").value = preset.model;
-    $("#wordApiStatus").textContent = state.apiPreset === "server" ? "使用服务端 .env 中的 JIAOAN_* 配置（不经过浏览器传 Key）" : "";
-  });
-  $("#wordKeyToggle").addEventListener("click", ()=>{
-    const input = $("#wordKey");
-    const visible = input.type === "text";
-    input.type = visible ? "password" : "text";
-    $("#wordKeyToggle").textContent = visible ? "显示" : "隐藏";
-  });
-
-  function apiPayload(){
-    if ($("#wordOffline").checked || state.apiPreset === "server") return null;
-    const payload = {
-      base_url: $("#wordBase").value.trim(),
-      api_key: $("#wordKey").value.trim(),
-      model: $("#wordModel").value.trim(),
-      label: $("#wordApiPreset").selectedOptions[0]?.textContent || "自定义 API"
-    };
-    if (!payload.base_url || !payload.model) throw Error("请填写 Base URL 和模型名");
-    return payload;
+  function isMarkdownTitle(title){ return /\.(md|markdown)$/i.test(String(title || "")); }
+  function isDocxTitle(title){ return /\.docx$/i.test(String(title || "")); }
+  function refTypeLabel(item){
+    if (item.kind === "artifact") return "教材";
+    if (item.kind === "textbook") return "教材";
+    if (item.kind === "template") return "模板";
+    if (item.kind === "image") return "配图";
+    if (item.kind === "knowledge") return isDocxTitle(item.title) ? "模板" : "教材";
+    return "资料";
+  }
+  function refBadgeClass(item){
+    const type = refTypeLabel(item);
+    if (type === "模板") return "template";
+    if (type === "教材") return "jiaocai";
+    return "";
   }
 
-  $("#wordModelsBtn").addEventListener("click", async ()=>{
-    try {
-      const body = {base_url: $("#wordBase").value.trim(), api_key: $("#wordKey").value.trim()};
-      if (!body.base_url) throw Error("先填写 Base URL");
-      $("#wordApiStatus").textContent = "获取模型中…";
-      const data = await api("/api/pipeline/lesson/models", "POST", body);
-      const list = $("#wordModels");
-      list.innerHTML = (data.models || []).map(name=>`<option value="${esc(name)}"></option>`).join("");
-      $("#wordApiStatus").textContent = data.models?.length ? `获取到 ${data.models.length} 个模型` : "接口未返回模型列表，请直接手填模型名";
-    } catch (error) { $("#wordApiStatus").textContent = "获取模型失败：" + error.message; }
-  });
-  $("#wordTestBtn").addEventListener("click", async ()=>{
-    try {
-      const body = apiPayload();
-      if (!body) throw Error("服务器 .env 模式无法在浏览器测试；直接生成即可，日志会显示调用错误");
-      $("#wordApiStatus").textContent = "测试连接中…";
-      const data = await api("/api/pipeline/lesson/test", "POST", body);
-      $("#wordApiStatus").textContent = `连接正常 · ${data.model} · ${data.latency_ms}ms · 回复：${data.reply || "-"}`;
-    } catch (error) { $("#wordApiStatus").textContent = "连接失败：" + error.message; }
-  });
+  function renderWordRefs(){
+    const box = $("#wordRefList");
+    const items = [];
+    state.selectedArtifacts.forEach(id=>{
+      const record = state.artifacts.find(item=>item.id === id);
+      items.push({kind:"artifact", id, title:record?.title || "教材章节",
+        meta:record ? `PDF→MD · ${record.meta?.chars ?? 0} 字 · ${record.meta?.imageCount ?? 0} 图` : "PDF→MD 教材"});
+    });
+    state.knowledgeRefs.forEach(ref=>items.push({kind:"knowledge", id:ref.id, title:ref.title,
+      meta:`知识库 · ${isDocxTitle(ref.title) ? "DOCX 模板" : "Markdown 教材"}`}));
+    if (state.textbookFile) items.push({kind:"textbook", title:state.textbookFile.name,
+      meta:`本地上传 · ${fileSize(state.textbookFile.size)}`});
+    state.templates.forEach((file,index)=>items.push({kind:"template", index, title:file.name,
+      meta:`本地上传模板 · ${fileSize(file.size)}`}));
+    state.images.forEach((file,index)=>items.push({kind:"image", index, title:file.name,
+      meta:`本地上传配图 · ${fileSize(file.size)}`, caption:state.imageCaptions[file.name] || ""}));
 
-  $("#wordTextbookFile").addEventListener("change", ()=>{
-    const file = $("#wordTextbookFile").files[0];
-    if (!file) return;
-    state.textbookFile = file;
-    const picked = $("#wordTextbookPicked");
-    picked.hidden = false;
-    picked.innerHTML = `<span><b>${esc(file.name)}</b> · ${fileSize(file.size)}</span><button type="button" id="wordTextbookClear" aria-label="移除">✕</button>`;
-    $("#wordTextbookClear").addEventListener("click", ()=>{ state.textbookFile=null; $("#wordTextbookFile").value=""; picked.hidden=true; picked.innerHTML=""; });
-  });
-
-  function renderFileList(target, items, removeAttr){
-    const box = $(target);
-    box.innerHTML = items.map((file, index)=>`<div class="file-row"><span>${esc(file.name)} · ${fileSize(file.size)}</span><button type="button" ${removeAttr}="${index}" aria-label="移除">✕</button></div>`).join("");
-  }
-  function renderImageList(){
-    $("#wordImageList").innerHTML = state.images.map((file, index)=>`<div class="file-row"><span>${esc(file.name)} · ${fileSize(file.size)}</span><input class="control caption-input" data-caption-index="${index}" placeholder="图注（可选）" value="${esc(state.imageCaptions[file.name] || "")}" aria-label="图注"><button type="button" data-rm-image="${index}" aria-label="移除">✕</button></div>`).join("");
-  }
-  $("#wordTemplates").addEventListener("change", (event)=>{
-    state.templates = state.templates.concat(Array.from(event.target.files || []));
-    event.target.value = "";
-    renderFileList("#wordTemplateList", state.templates, "data-rm-template");
-  });
-  $("#wordImages").addEventListener("change", (event)=>{
-    state.images = state.images.concat(Array.from(event.target.files || []));
-    event.target.value = "";
-    renderImageList();
-  });
-  $("#wordTemplateList").addEventListener("click", (event)=>{
-    const button = event.target.closest("[data-rm-template]");
-    if (button){ state.templates.splice(Number(button.dataset.rmTemplate), 1); renderFileList("#wordTemplateList", state.templates, "data-rm-template"); }
-  });
-  $("#wordImageList").addEventListener("click", (event)=>{
-    const button = event.target.closest("[data-rm-image]");
-    if (button){ const removed=state.images.splice(Number(button.dataset.rmImage), 1)[0]; if(removed) delete state.imageCaptions[removed.name]; renderImageList(); }
-  });
-
-  async function refreshWordArtifacts(){
-    const records = await api("/api/pipeline/artifacts?stage=pdf2md");
-    state.artifacts = records;
-    const box = $("#wordArtifacts");
-    if (!records.length){
-      box.innerHTML = '<div class="empty-ref">还没有 PDF→MD 产物，先到第 01 步解析教材</div>';
+    box.classList.toggle("has-items", items.length > 0);
+    if (!items.length){
+      box.innerHTML = '<div class="empty-ref">还没有引用任何资料，从知识库选择或上传本地文件</div>';
       return;
     }
-    box.innerHTML = records.map(record => {
-      const checked = state.selectedArtifacts.has(record.id);
-      return `<label class="artifact-row ${checked ? "on" : ""}">
-        <input type="checkbox" data-artifact="${esc(record.id)}" ${checked ? "checked" : ""}>
-        <span class="ar-body"><b>${esc(record.title)}</b>
-        <span>${esc(record.source?.pdfName || "")} · ${record.meta?.chars ?? 0} 字 · ${record.meta?.imageCount ?? 0} 图 · ${esc(fmtTime(record.created))}</span></span>
-      </label>`;
+    box.innerHTML = items.map(item=>{
+      const type = refTypeLabel(item);
+      const key = item.kind === "artifact" || item.kind === "knowledge" ? `${item.kind}:${item.id}` : `${item.kind}:${item.index}`;
+      return `<div class="word-ref-item">
+        <span class="wr-badge ${refBadgeClass(item)}">${type}</span>
+        <span class="wr-body"><b>${esc(item.title)}</b><span>${esc(item.meta)}</span>
+        ${item.kind === "image" ? `<input class="control caption-input" data-caption-ref="${item.index}" placeholder="图注（可选）" value="${esc(item.caption)}" aria-label="图注">` : ""}
+        </span>
+        <button type="button" class="ref-x" data-rm-ref="${esc(key)}" aria-label="移除 ${esc(item.title)}">✕</button>
+      </div>`;
     }).join("");
   }
-  $("#wordArtifacts").addEventListener("change", (event)=>{
-    const input = event.target.closest("[data-artifact]");
+
+  $("#wordRefList").addEventListener("click", (event)=>{
+    const remove = event.target.closest("[data-rm-ref]");
+    if (!remove) return;
+    const [kind, value] = remove.dataset.rmRef.split(":");
+    if (kind === "artifact") state.selectedArtifacts.delete(value);
+    else if (kind === "knowledge") state.knowledgeRefs = state.knowledgeRefs.filter(item=>item.id !== value);
+    else if (kind === "textbook") state.textbookFile = null;
+    else if (kind === "template") state.templates.splice(Number(value), 1);
+    else if (kind === "image"){
+      const removed = state.images.splice(Number(value), 1)[0];
+      if (removed) delete state.imageCaptions[removed.name];
+    }
+    renderWordRefs();
+  });
+  $("#wordRefList").addEventListener("input", (event)=>{
+    const input = event.target.closest("[data-caption-ref]");
     if (!input) return;
-    if (input.checked) state.selectedArtifacts.add(input.dataset.artifact);
-    else state.selectedArtifacts.delete(input.dataset.artifact);
-    input.closest(".artifact-row").classList.toggle("on", input.checked);
+    const file = state.images[Number(input.dataset.captionRef)];
+    if (file) state.imageCaptions[file.name] = input.value;
+  });
+
+  /* ---- reference picker modal ---- */
+  const wordRefModal = $("#wordRefModal");
+  function openWordRefModal(){
+    state.refChoice = {artifacts:new Set(state.selectedArtifacts), knowledge:new Set(state.knowledgeRefs.map(x=>x.id))};
+    $("#wordRefSearch").value = "";
+    wordRefModal.classList.add("open");
+    document.body.style.overflow = "hidden";
+    loadWordRefOptions().catch(showWordError);
+    setTimeout(()=>$("#wordRefSearch").focus(), 80);
+  }
+  function closeWordRefModal(){
+    wordRefModal.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+  async function loadWordRefOptions(){
+    $("#wordRefOptions").innerHTML = '<div class="empty-ref">加载中…</div>';
+    const [records, knowledge] = await Promise.all([
+      api("/api/pipeline/artifacts?stage=pdf2md"),
+      api("/api/knowledge")
+    ]);
+    state.artifacts = records;
+    state.knowledgeCache = knowledge;
+    state.refRows = [
+      ...records.map(record=>({kind:"artifact", id:record.id, title:record.title,
+        meta:`${record.source?.pdfName || ""} · ${record.meta?.chars ?? 0} 字 · ${record.meta?.imageCount ?? 0} 图`,
+        label:"教材"})),
+      ...knowledge.filter(item=>isMarkdownTitle(item.title)).map(item=>({
+        kind:"knowledge", id:item.id, title:item.title,
+        meta:`知识库 · ${item.meta || ""}`, label:"教材"}))
+    ];
+    const seen = new Set();
+    state.refRows = state.refRows.filter(row=>{
+      const key = row.title + "|" + row.label;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    renderWordRefOptions();
+  }
+  function renderWordRefOptions(){
+    const q = $("#wordRefSearch").value.trim().toLowerCase();
+    const rows = (state.refRows || []).filter(row=>!q || (row.title + row.meta).toLowerCase().includes(q));
+    $("#wordRefOptions").innerHTML = rows.length ? rows.map(row=>{
+      const on = row.kind === "artifact"
+        ? state.refChoice.artifacts.has(row.id)
+        : state.refChoice.knowledge.has(row.id);
+      return `<div class="kb-row ${on ? "on" : ""}" data-ref-kind="${row.kind}" data-ref-id="${esc(row.id)}" role="option" aria-selected="${on}" tabindex="0">
+        <span class="kb-check"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg></span>
+        <div class="ref-body"><b>${esc(row.title)}</b><p>${esc(row.meta)}</p>
+        <div class="ref-meta"><span class="wr-badge ${row.label === "模板" ? "template" : "jiaocai"}">${row.label}</span></div></div>
+      </div>`;
+    }).join("") : '<div class="empty-ref">没有匹配的教材或模板</div>';
+    const count = state.refChoice.artifacts.size + state.refChoice.knowledge.size;
+    $("#wordRefPicked").textContent = count;
+  }
+  function toggleRefChoice(row){
+    const set = row.kind === "artifact" ? state.refChoice.artifacts : state.refChoice.knowledge;
+    if (set.has(row.id)) set.delete(row.id);
+    else {
+      if (state.refChoice.artifacts.size + state.refChoice.knowledge.size >= 6){ toast("最多选择 6 份资料"); return; }
+      set.add(row.id);
+    }
+    renderWordRefOptions();
+  }
+  $("#wordRefOptions").addEventListener("click", (event)=>{
+    const row = event.target.closest("[data-ref-id]");
+    if (row) toggleRefChoice({kind:row.dataset.refKind, id:row.dataset.refId});
+  });
+  $("#wordRefOptions").addEventListener("keydown", (event)=>{
+    const row = event.target.closest("[data-ref-id]");
+    if (row && (event.key === "Enter" || event.key === " ")){ event.preventDefault(); toggleRefChoice({kind:row.dataset.refKind, id:row.dataset.refId}); }
+  });
+  $("#wordRefSearch").addEventListener("input", renderWordRefOptions);
+  $("#wordRefRefresh").addEventListener("click", ()=>loadWordRefOptions().catch(showWordError));
+  $("#wordRefClose").addEventListener("click", closeWordRefModal);
+  $("#wordRefCancel").addEventListener("click", closeWordRefModal);
+  wordRefModal.addEventListener("click", (event)=>{ if (event.target === wordRefModal) closeWordRefModal(); });
+  $("#wordRefConfirm").addEventListener("click", ()=>{
+    const rows = state.refRows || [];
+    state.selectedArtifacts = new Set(state.refChoice.artifacts);
+    state.knowledgeRefs = rows.filter(row=>row.kind === "knowledge" && state.refChoice.knowledge.has(row.id))
+      .map(row=>({id:row.id, title:row.title}));
+    renderWordRefs();
+    closeWordRefModal();
+    toast("已加入 " + (state.selectedArtifacts.size + state.knowledgeRefs.length) + " 份参考资料");
+  });
+  document.addEventListener("keydown", (event)=>{ if (event.key === "Escape" && wordRefModal.classList.contains("open")) closeWordRefModal(); });
+
+  /* ---- local upload ---- */
+  $("#wordKbPick").addEventListener("click", openWordRefModal);
+  $("#wordLocalUpload").addEventListener("click", ()=>$("#wordLocalFiles").click());
+  $("#wordLocalFiles").addEventListener("change", async (event)=>{
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    const markdown = [];
+    for (const file of files){
+      const name = file.name.toLowerCase();
+      if (file.type.startsWith("image/")) state.images.push(file);
+      else if (name.endsWith(".docx")) state.templates.push(file);
+      else if (name.endsWith(".md") || name.endsWith(".markdown")) markdown.push(file);
+      else toast(`已跳过不支持的文件：${file.name}`);
+    }
+    if (markdown.length){
+      const chunks = await Promise.all(markdown.map(file=>file.text()));
+      const name = markdown.length > 1 ? "教材合并.md" : markdown[0].name;
+      state.textbookFile = new File([chunks.join("\n\n")], name, {type:"text/markdown"});
+    }
+    renderWordRefs();
+    if (files.length) toast("已加入本地资料");
   });
 
   $("#wordStart").addEventListener("click", async ()=>{
     const button = $("#wordStart");
-    if (!state.selectedArtifacts.size && !state.textbookFile){
-      toast("请选择 PDF→MD 阶段产物，或上传教材 Markdown");
+    const hasTextbook = state.selectedArtifacts.size > 0 || Boolean(state.textbookFile)
+      || state.knowledgeRefs.some(ref=>isMarkdownTitle(ref.title));
+    if (!hasTextbook){
+      toast("请先选择教材来源（PDF→MD 产物、知识库教材或本地 Markdown）");
       return;
     }
-    let apiConfig = null;
-    try { apiConfig = apiPayload(); } catch (error) { toast(error.message); return; }
     button.disabled = true;
     $("#wordState").textContent = "创建任务…";
     try {
@@ -342,11 +412,11 @@
         keep_all_images: $("#wordKeepAll").checked,
         chapters: $("#wordChapterFilter").value.trim() || "all",
         textbookArtifacts: Array.from(state.selectedArtifacts),
+        knowledgeRefs: state.knowledgeRefs.map(item=>item.id),
         captions: state.imageCaptions
       };
       const periods = Number($("#wordPeriods").value);
       if (periods) payload.periods = periods;
-      if (apiConfig) payload.api = apiConfig;
       const form = new FormData();
       form.append("payload", JSON.stringify(payload));
       if (state.textbookFile) form.append("textbook", state.textbookFile);
@@ -385,9 +455,7 @@
     try {
       if (open){ history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(open.dataset.openLesson)}`); await pollLesson(open.dataset.openLesson); }
       if (retry){
-        let apiConfig = null;
-        try { apiConfig = apiPayload(); } catch (error) { apiConfig = null; }
-        const result = await api(`/api/pipeline/lesson/jobs/${retry.dataset.retryLesson}/retry`, "POST", apiConfig ? {api:apiConfig} : {});
+        const result = await api(`/api/pipeline/lesson/jobs/${retry.dataset.retryLesson}/retry`, "POST", {});
         history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(result.id)}`);
         await pollLesson(result.id);
       }
@@ -410,7 +478,7 @@
       }
       $("#wordState").textContent = "";
       await refreshWordJobs();
-      await refreshWordArtifacts().catch(()=>{});
+      state.artifacts = await api("/api/pipeline/artifacts?stage=pdf2md"); renderWordRefs();
       if (job.status === "succeeded") toast("全部学时生成完成");
       else if (job.status === "partial_failed") toast("部分章节失败；成功学时仍可下载与送入 PPT");
       else if (job.status === "failed") toast("生成失败：" + (job.error || "查看任务日志"));
@@ -489,9 +557,9 @@
       if (name === "word"){
         if (!state.initialized.word){
           state.initialized.word = true;
-          $("#wordApiPreset").dispatchEvent(new Event("change"));
         }
-        await refreshWordArtifacts();
+        state.artifacts = await api("/api/pipeline/artifacts?stage=pdf2md");
+        renderWordRefs();
         await refreshWordJobs();
         const params = new URLSearchParams(location.search);
         if (params.get("lesson")) await pollLesson(params.get("lesson"));

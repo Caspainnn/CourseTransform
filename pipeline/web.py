@@ -16,8 +16,9 @@ import zipfile
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
+from werkzeug.datastructures import FileStorage
 
-from documents import Problem, parse_document
+from documents import Problem, decode, parse_document
 from jiaoan import web as jweb
 from pipeline.artifacts import ARTIFACT_ID, ArtifactStore, now, read_json, sha256_file, write_json
 from pipeline.lesson_jobs import LessonJobManager
@@ -263,6 +264,12 @@ class PipelineService:
                 textbook['_folder'] = str(self.artifacts.folder(textbook_id))
                 reuse_or_publish('textbook-' + textbook_id,
                                  lambda tb=textbook: self._bundle_markdown(tb), 'jiaocai')
+            for knowledge_id in artifact['source'].get('knowledgeRefs') or []:
+                if any(item['id'] == knowledge_id for item in refs):
+                    continue
+                entry = read_json(self.data / 'knowledge' / knowledge_id / 'entry.json')
+                if entry and not any(item['title'] == entry['title'] and item['type'] == 'jiaocai' for item in refs):
+                    refs.append({'id': entry['id'], 'title': entry['title'], 'type': 'jiaocai'})
         else:
             reuse_or_publish('textbook', lambda: self._bundle_markdown(artifact), 'jiaocai')
             for textbook_id in artifact['source'].get('textbookArtifacts') or []:
@@ -432,16 +439,51 @@ def create_blueprint(data_dir):
             raise Problem('任务参数无效')
         upload = request.files.get('textbook')
         artifact_ids = payload.get('textbookArtifacts') or []
-        if not upload and not artifact_ids:
-            raise Problem('请上传教材 Markdown，或选择 PDF→MD 阶段产物')
+        knowledge_ids = payload.get('knowledgeRefs') or []
+        if not upload and not artifact_ids and not knowledge_ids:
+            raise Problem('请选择教材/模板资料，或上传 Markdown')
         folder = service.root / 'lesson' / 'staging' / uuid.uuid4().hex
         folder.mkdir(parents=True)
-        source = {'textbookArtifacts': [], 'textbookName': '', 'pdfNames': [], 'pdfSha256': []}
+        source = {'textbookArtifacts': [], 'knowledgeRefs': [], 'textbookName': '',
+                  'pdfNames': [], 'pdfSha256': []}
         try:
+            chapters = []
+            images_dir = folder / 'images'
+            images_dir.mkdir()
+            kb_templates = []
+            kb_names = []
+            for knowledge_id in knowledge_ids:
+                if not isinstance(knowledge_id, str) or not re.fullmatch(r'[a-f0-9]{32}', knowledge_id):
+                    raise Problem('知识库资料 ID 无效')
+                entry = read_json(service.data / 'knowledge' / knowledge_id / 'entry.json')
+                if not entry:
+                    raise Problem('知识库资料不存在', 404, 'E_NOT_FOUND')
+                record = read_json(service.data / 'files' / entry['fileId'] / 'file.json')
+                if not record:
+                    raise Problem('知识库文件不存在', 404, 'E_NOT_FOUND')
+                source_path = Path(record.get('path') or '')
+                if not source_path.is_file():
+                    raise Problem('知识库文件已被移除', 409, 'E_INPUT_MISSING')
+                name = record.get('name') or source_path.name
+                suffix = Path(name).suffix.lower()
+                if suffix in ('.md', '.markdown'):
+                    body = record.get('text') or source_path.read_text(encoding='utf-8', errors='replace')
+                    for asset in record.get('assets') or []:
+                        asset_path = Path(asset.get('path') or '')
+                        if not asset_path.is_file():
+                            continue
+                        asset_name = asset.get('name') or asset_path.name
+                        shutil.copy2(asset_path, images_dir / asset_name)
+                        body = body.replace(f'assets/{asset_name}', f'images/{asset_name}')
+                    chapters.append(body)
+                    source['knowledgeRefs'].append(knowledge_id)
+                    kb_names.append(entry.get('title') or name)
+                elif suffix == '.docx':
+                    kb_templates.append(FileStorage(stream=open(source_path, 'rb'), filename=name,
+                                                    content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'))
+                else:
+                    raise Problem('知识库当前仅支持 Markdown 教材或 DOCX 模板')
             if artifact_ids:
-                chapters = []
-                images_dir = folder / 'images'
-                images_dir.mkdir()
                 for artifact_id in artifact_ids:
                     artifact = service.artifacts.get(artifact_id)
                     if not artifact or artifact.get('stage') != 'pdf2md':
@@ -451,10 +493,10 @@ def create_blueprint(data_dir):
                     md_names = artifact['files'].get('md')
                     parts = [(folder_art / name).read_text(encoding='utf-8')
                              for name in ([md_names] if isinstance(md_names, str) else md_names or [])]
-                    text = '\n\n'.join(parts)
+                    body = '\n\n'.join(parts)
                     # Keep every referenced original image, renaming only on a
                     # real name collision between different PDF jobs.
-                    for rel in IMAGE_REF.findall(text):
+                    for rel in IMAGE_REF.findall(body):
                         name = Path(rel).name
                         source_image = folder_art / 'images' / name
                         if not source_image.is_file():
@@ -465,8 +507,8 @@ def create_blueprint(data_dir):
                             target = images_dir / name
                         if not target.exists():
                             shutil.copy2(source_image, target)
-                        text = text.replace(rel, f'images/{name}')
-                    chapters.append(text)
+                        body = body.replace(rel, f'images/{name}')
+                    chapters.append(body)
                     source['textbookArtifacts'].append(artifact_id)
                     pdf_name = artifact['source'].get('pdfName')
                     if pdf_name and pdf_name not in source['pdfNames']:
@@ -474,18 +516,22 @@ def create_blueprint(data_dir):
                     pdf_sha = artifact['source'].get('pdfSha256')
                     if pdf_sha and pdf_sha not in source['pdfSha256']:
                         source['pdfSha256'].append(pdf_sha)
-                (folder / 'textbook.md').write_text('\n\n'.join(chapters), encoding='utf-8')
-                source['textbookName'] = ' + '.join(source['pdfNames'])
-            else:
+            uploaded_name = ''
+            if upload:
                 name = Path(upload.filename.replace('\\', '/')).name
                 if Path(name).suffix.lower() not in ('.md', '.markdown'):
                     raise Problem('教材须为 .md 文件')
                 content = upload.read(60 * 1024**2 + 1)
                 if not content or len(content) > 60 * 1024**2:
                     raise Problem('教材文件须在 1 字节至 60MB 之间')
-                (folder / 'textbook.md').write_bytes(content)
-                source['textbookName'] = name
-            templates = [item for item in request.files.getlist('templates') if item.filename]
+                chapters.append(decode(content))
+                uploaded_name = name
+            if not chapters:
+                raise Problem('没有可用的教材 Markdown；模板不能单独生成教案')
+            (folder / 'textbook.md').write_text('\n\n'.join(chapters), encoding='utf-8')
+            names = source['pdfNames'] + kb_names + ([uploaded_name] if uploaded_name else [])
+            source['textbookName'] = ' + '.join(dict.fromkeys(names)) or '教材'
+            templates = [item for item in request.files.getlist('templates') if item.filename] + kb_templates
             images = [item for item in request.files.getlist('images') if item.filename]
             ident = service.lessons.create(
                 textbook_path=folder / 'textbook.md', templates=templates, images=images,
@@ -571,6 +617,7 @@ def create_blueprint(data_dir):
             stage='lesson', title=title,
             source={'jobId': ident, 'docxSha256': sha256_file(path),
                     'textbookArtifacts': (job.get('source') or {}).get('textbookArtifacts') or [],
+                    'knowledgeRefs': (job.get('source') or {}).get('knowledgeRefs') or [],
                     'textbookName': (job.get('source') or {}).get('textbookName') or ''},
             files={'docx': path},
             meta={'topic': title},

@@ -765,10 +765,10 @@ input[type="range"]::-moz-range-thumb{
         <p>任务与资料仅保存在本机</p>
         <div class="storage-line" aria-hidden="true"><i></i></div>
       </div>
-      <div class="user-chip">
+      <button class="user-chip" id="btnLocalUser" type="button" aria-label="打开本机设置">
         <div class="avatar" aria-hidden="true">本</div>
         <div><b>本机用户</b><span>本地教学工作台</span></div>
-      </div>
+      </button>
     </div>
   </aside>
 
@@ -1248,77 +1248,7 @@ input[type="range"]::-moz-range-thumb{
           <div class="stack">
             <section class="card">
               <div class="card-head">
-                <div><h2 class="card-title">1. 模型 API</h2><p class="card-sub">Key 只存在本次请求的服务端内存，不写任务文件</p></div>
-              </div>
-              <div class="form-grid">
-                <div class="field full">
-                  <label for="wordApiPreset">接口来源</label>
-                  <select class="control" id="wordApiPreset">
-                    <option value="server">服务器 .env（JIAOAN_*，推荐本机）</option>
-                    <option value="deepseek">DeepSeek 官方</option>
-                    <option value="local">本机 Ollama（qwen2.5:7b）</option>
-                    <option value="custom">自定义 OpenAI 兼容接口</option>
-                  </select>
-                </div>
-                <div class="field full">
-                  <label for="wordBase">Base URL <span class="hint">通常以 /v1 结尾</span></label>
-                  <input class="control" id="wordBase" type="text" placeholder="https://your-gateway.example.com/v1" autocomplete="off">
-                </div>
-                <div class="field full">
-                  <label for="wordKey">API Key <span class="hint">仅本次生成使用</span></label>
-                  <div class="inline-control">
-                    <input class="control" id="wordKey" type="password" placeholder="sk-..." autocomplete="off">
-                    <button class="btn btn-sm" id="wordKeyToggle" type="button">显示</button>
-                  </div>
-                </div>
-                <div class="field full">
-                  <label for="wordModel">模型名</label>
-                  <div class="inline-control">
-                    <input class="control" id="wordModel" type="text" list="wordModels" placeholder="deepseek-chat" autocomplete="off">
-                    <button class="btn btn-sm" id="wordModelsBtn" type="button">获取模型</button>
-                    <button class="btn btn-sm" id="wordTestBtn" type="button">测试连接</button>
-                  </div>
-                  <datalist id="wordModels"></datalist>
-                </div>
-              </div>
-              <div id="wordApiStatus" class="hint" aria-live="polite"></div>
-            </section>
-
-            <section class="card">
-              <div class="card-head">
-                <div><h2 class="card-title">2. 教材与模板</h2><p class="card-sub">可直接选 PDF→MD 阶段产物，也可上传已有 Markdown</p></div>
-              </div>
-              <div class="subhead">教材来源</div>
-              <div id="wordArtifacts" class="artifact-list"><div class="empty-ref">还没有 PDF→MD 产物，先到第 01 步解析教材</div></div>
-              <div class="or-line"><span>或上传</span></div>
-              <label class="drop drop-sm" id="wordTextbookDrop">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-                <div class="drop-label">上传教材 <b>Markdown</b></div>
-                <div class="drop-hint">.md / .markdown · 可多章</div>
-                <input type="file" id="wordTextbookFile" accept=".md,.markdown" aria-label="上传教材 Markdown">
-              </label>
-              <div id="wordTextbookPicked" class="picked-file" hidden></div>
-              <div class="subhead" style="margin-top:16px">教案模板（可多份，按章匹配）</div>
-              <label class="drop drop-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/></svg>
-                <div class="drop-label">上传 <b>.docx 模板</b></div>
-                <div class="drop-hint">支持 6 栏 / 9 栏单学时模板；不传则用内置版式</div>
-                <input type="file" id="wordTemplates" accept=".docx" multiple aria-label="上传教案模板">
-              </label>
-              <div id="wordTemplateList" class="file-list"></div>
-              <div class="subhead" style="margin-top:16px">教材配图（可选）</div>
-              <label class="drop drop-sm">
-                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                <div class="drop-label">上传 <b>教材图片</b></div>
-                <div class="drop-hint">PDF→MD 产物会自带原图，这里补传直接上传 Markdown 的配图</div>
-                <input type="file" id="wordImages" accept="image/*" multiple aria-label="上传教材配图">
-              </label>
-              <div id="wordImageList" class="file-list"></div>
-            </section>
-
-            <section class="card">
-              <div class="card-head">
-                <div><h2 class="card-title">3. 教学简报与生成选项</h2><p class="card-sub">学时拆分以本章实验数为准，填写学时数则按填写值</p></div>
+                <div><h2 class="card-title">1. 基础信息填写</h2><p class="card-sub">模型使用服务端默认配置；这些信息会写入教案封面，并影响学时拆分与内容深度</p></div>
               </div>
               <div class="form-grid">
                 <div class="field"><label for="wordSubject">学科</label><input class="control" id="wordSubject" type="text" value="信息科技"></div>
@@ -1335,6 +1265,29 @@ input[type="range"]::-moz-range-thumb{
                 <label class="check-opt"><input type="checkbox" id="wordFilter" checked> 过滤二维码 / 源码截图 / 重复图</label>
                 <label class="check-opt"><input type="checkbox" id="wordKeepAll"> 保留全部配图</label>
               </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <div><h2 class="card-title">2. 教材与模板</h2><p class="card-sub">教材 Markdown、单学时模板与配图会一起交给教案引擎</p></div>
+              </div>
+              <div class="ref-head">
+                <div><b>参考资料</b><span>来自教材库与知识库，可多选</span></div>
+                <span class="badge ok">已连接</span>
+              </div>
+              <div id="wordRefList" class="word-ref-list"><div class="empty-ref">还没有引用任何资料，从知识库选择或上传本地文件</div></div>
+              <div class="ref-picker" role="group" aria-label="添加参考资料">
+                <button type="button" id="wordKbPick">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></svg>
+                  从知识库选择
+                </button>
+                <button type="button" id="wordLocalUpload">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                  本地上传
+                </button>
+              </div>
+              <input type="file" id="wordLocalFiles" accept=".md,.markdown,.docx,image/*" multiple hidden aria-label="本地上传教材、模板或配图">
+              <div class="hint" style="margin-top:8px">知识库提供 Markdown 教材；教案模板与配图可本地上传；配图可填写图注。</div>
               <div class="bar-actions" style="margin-top:16px">
                 <button class="btn btn-accent" id="wordStart">开始生成教案</button>
                 <span id="wordState" class="hint" aria-live="polite"></span>
@@ -1364,6 +1317,48 @@ input[type="range"]::-moz-range-thumb{
           </div>
           <div id="wordDocx" class="result-grid"></div>
         </section>
+      </div>
+
+      
+<!-- ===== Feature: Local settings ===== -->
+      <div id="view-settings" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Settings / Local</div>
+            <h1>本机<em>设置</em></h1>
+            <p>查看本机用户、教学资源库与模型运行状态。资料、任务和密钥都只留在本机。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" id="settingsBack">返回工作台</button>
+          </div>
+        </div>
+        <div class="settings-grid">
+          <section class="card">
+            <div class="card-head"><div><h2 class="card-title">用户信息</h2><p class="card-sub">本机单用户工作台</p></div></div>
+            <div class="settings-user">
+              <div class="avatar" aria-hidden="true">本</div>
+              <div><b>本机用户</b><span>本地教学工作台</span></div>
+            </div>
+            <div class="settings-row"><span>账户体系</span><b>未启用（本机单用户）</b></div>
+            <div class="settings-row"><span>数据位置</span><b>项目 data/ 目录</b></div>
+            <p class="settings-note">不提供账号、多租户或云同步；上传资料与生成产物不会离开本机（模型调用除外，由服务端配置决定）。</p>
+          </section>
+          <section class="card">
+            <div class="card-head">
+              <div><h2 class="card-title">知识库</h2><p class="card-sub">教案与教材资料库</p></div>
+              <button class="btn btn-sm" id="settingsKbRefresh" type="button">刷新</button>
+            </div>
+            <div class="settings-big"><b id="settingsKbCount">0</b><span>份资料</span></div>
+            <div id="settingsKbList" class="settings-list"><div class="empty-ref">暂无资料</div></div>
+            <p class="settings-note">知识库用于 PPT 阶段选材；教案阶段可直接选择 PDF→MD 产物或本地文件。</p>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><h2 class="card-title">模型管理</h2><p class="card-sub">服务端配置状态</p></div></div>
+            <div class="settings-row"><span>模型服务</span><b id="settingsModelState">检查中…</b></div>
+            <div class="settings-row"><span>原生 PPT 运行时</span><b id="settingsNativeState">检查中…</b></div>
+            <p class="settings-note">模型名、接口地址与密钥只在服务端 .env 读取；页面编辑功能暂未开放（占位）。</p>
+          </section>
+        </div>
       </div>
 
       <!-- ===== Feature: WIP placeholder ===== -->
@@ -1442,6 +1437,38 @@ input[type="range"]::-moz-range-thumb{
   </div>
 </div>
 
+
+<!-- ==== Lesson reference picker modal ==== -->
+<div class="modal" id="wordRefModal" role="dialog" aria-modal="true" aria-labelledby="wordRefTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h2 id="wordRefTitle">从知识库选择教材与模板</h2>
+        <p>可选 PDF→MD 教材产物、知识库中的 Markdown 教材与 DOCX 模板</p>
+      </div>
+      <button class="icon-btn" id="wordRefClose" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="ref-modal-main">
+        <div class="bar-actions" style="padding:0 0 10px">
+          <input class="control" id="wordRefSearch" type="search" placeholder="搜索教材或模板名称…" aria-label="搜索教材或模板">
+          <button class="btn btn-sm" id="wordRefRefresh" type="button">刷新</button>
+        </div>
+        <div class="kb-list" id="wordRefOptions"><div class="empty-ref">加载中…</div></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="picked">已选 <b id="wordRefPicked">0</b> / 6 份资料</span>
+      <div class="bar-actions">
+        <button class="btn btn-sm" id="wordRefCancel" type="button">取消</button>
+        <button class="btn btn-sm btn-accent" id="wordRefConfirm" type="button">加入参考资料</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <style>[hidden]{display:none!important}.thumb-canvas img{display:block}.slide-render img{display:block}#taskStatus{white-space:pre-wrap}#taskActions{margin-bottom:16px}.preview-toolbar{flex-wrap:wrap}#versionSelect{width:auto;flex:0 1 220px;min-width:120px;max-width:100%}</style><div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <style>
 /* ==== Integrated pipeline pages (PDF→MD / MD→教案) ==== */
@@ -1504,9 +1531,54 @@ input[type="range"]::-moz-range-thumb{
 .stage-result{margin-top:18px;}
 .notice.small{font-size:11.5px;margin-top:12px;align-items:flex-start;}
 .notice.small svg{width:13px;height:13px;flex:0 0 13px;margin-top:2px;}
+.user-chip{border:0;background:transparent;width:100%;text-align:left;border-radius:var(--radius-sm);cursor:pointer;transition:background .16s ease;}
+.user-chip:hover{background:#f1eee7;}
+.ref-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:2px 0 10px;}
+.ref-head b{font-size:13px;font-weight:600;display:block;}
+.ref-head span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+.word-ref-list{display:flex;flex-direction:column;gap:8px;min-height:100px;justify-content:center;border:1px dashed var(--line-strong);border-radius:var(--radius-sm);padding:12px;background:#fbfaf7;}
+.word-ref-list.has-items{background:#fff;border-style:solid;justify-content:flex-start;}
+.word-ref-item{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;background:#fff;font-size:12.5px;}
+.word-ref-item .wr-body{flex:1;min-width:0;}
+.word-ref-item b{display:block;font-weight:600;word-break:break-all;line-height:1.4;}
+.word-ref-item span{display:block;color:var(--ink-3);font-size:11px;margin-top:2px;}
+.word-ref-item .caption-input{width:100%;margin-top:6px;padding:5px 8px;font-size:11.5px;}
+.word-ref-item .ref-x{border:0;background:transparent;color:var(--ink-3);padding:0 3px;font-size:14px;line-height:1;}
+.word-ref-item .wr-badge{flex:0 0 auto;font-size:10.5px;padding:2px 8px;border-radius:99px;background:#f1eee7;color:var(--ink-3);}
+.word-ref-item .wr-badge.jiaoan{background:var(--accent-soft);color:var(--accent-dark);}
+.word-ref-item .wr-badge.jiaocai{background:var(--sage-soft);color:var(--sage);}
+.word-ref-item .wr-badge.template{background:#eef1f7;color:#3e5578;}
+.ref-picker{display:flex;border:1px solid var(--line-strong);border-radius:9px;overflow:hidden;margin-top:10px;background:#fff;}
+.ref-picker button{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:0;border-right:1px solid var(--line);background:#fff;padding:10px;font-size:12.5px;color:var(--ink-2);}
+.ref-picker button:last-child{border-right:0;}
+.ref-picker button:hover{background:#f1eee7;color:var(--ink);}
+.ref-picker svg{width:15px;height:15px;flex:0 0 15px;}
+.ref-modal-main{min-width:0;}
+#wordRefModal .modal-body{grid-template-columns:1fr;padding:0 20px;}
+#wordRefModal .ref-modal-main{padding:14px 0 0;}
+#wordRefModal .kb-list{max-height:52vh;padding-right:0;}
+.ref-modal-main .control{flex:1;}
+.settings-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch;}
+.settings-user{display:flex;align-items:center;gap:10px;padding:8px 0 10px;}
+.settings-user b{display:block;font-size:13px;}
+.settings-user span{font-size:11.5px;color:var(--ink-3);}
+.settings-row{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.settings-row span{color:var(--ink-3);flex:0 0 auto;}
+.settings-row b{font-weight:600;text-align:right;word-break:break-all;}
+.settings-big{display:flex;align-items:baseline;gap:6px;margin:4px 0 10px;}
+.settings-big b{font-size:30px;font-family:var(--serif);line-height:1;}
+.settings-big span{font-size:11.5px;color:var(--ink-3);}
+.settings-list{display:flex;flex-direction:column;gap:6px;max-height:145px;overflow:auto;}
+.settings-list div{font-size:11.5px;color:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fbfaf7;word-break:break-all;}
+.settings-list .empty-ref{border:0;background:transparent;padding:6px 0;}
+.settings-note{font-size:11.5px;color:var(--ink-3);line-height:1.65;margin-top:10px;}
+@media(max-width:1024px){
+  .settings-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
 @media(max-width:1024px){.stage-grid{grid-template-columns:minmax(0,1fr) 320px;}}
 @media(max-width:860px){
   .stage-grid{grid-template-columns:1fr;}
+  .settings-grid{grid-template-columns:1fr;}
   .status-card{position:static;}
   .form-grid{grid-template-columns:1fr;}
 }
