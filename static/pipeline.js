@@ -51,10 +51,13 @@
 
   /* ================= PDF → MD ================= */
   const pdfFileInput = $("#pdfFile");
-  pdfFileInput.addEventListener("change", ()=>{
-    const file = pdfFileInput.files[0];
+  function selectPdf(file){
     if (!file) return;
-    if (!/\.pdf$/i.test(file.name)){ toast("请选择 PDF 文件"); pdfFileInput.value=""; return; }
+    if (!/\.pdf$/i.test(file.name)){
+      toast("请选择 PDF 文件");
+      pdfFileInput.value = "";
+      return;
+    }
     state.pdfFile = file;
     const picked = $("#pdfPicked");
     picked.hidden = false;
@@ -62,6 +65,41 @@
     $("#pdfClear").addEventListener("click", ()=>{ state.pdfFile=null; pdfFileInput.value=""; picked.hidden=true; picked.innerHTML=""; $("#pdfStart").disabled=true; });
     $("#pdfStart").disabled = false;
     $("#pdfState").textContent = "";
+  }
+  pdfFileInput.addEventListener("change", ()=>{
+    const file = pdfFileInput.files[0];
+    if (file) selectPdf(file);
+  });
+  const pdfDrop = $("#pdfDrop");
+  ["dragenter", "dragover"].forEach(type=>pdfDrop.addEventListener(type, (event)=>{
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+    pdfDrop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach(type=>pdfDrop.addEventListener(type, (event)=>{
+    event.preventDefault();
+    event.stopPropagation();
+    pdfDrop.classList.remove("over");
+  }));
+  pdfDrop.addEventListener("drop", (event)=>{
+    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+    if (file) selectPdf(file);
+  });
+  // Dropping a PDF anywhere in this page should upload it, never navigate to the file.
+  const pdfView = $("#view-pdf");
+  ["dragenter", "dragover"].forEach(type=>pdfView.addEventListener(type, (event)=>{
+    if (event.dataTransfer && Array.from(event.dataTransfer.types || []).includes("Files")){
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  }));
+  pdfView.addEventListener("drop", (event)=>{
+    if (event.target.closest("#pdfDrop")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+    if (file) selectPdf(file);
   });
 
   $("#pdfStart").addEventListener("click", async ()=>{
