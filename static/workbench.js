@@ -618,7 +618,20 @@
     $("#btnLocalUser").setAttribute("aria-expanded", "true");
     accountPopover.hidden = false;
     renderAccountSummary();
+    positionAccountPopover();
     setTimeout(()=>{ const first = accountPopover.querySelector("[data-account-panel]"); if(first) first.focus(); }, 50);
+  }
+  function positionAccountPopover(){
+    const rect = $("#btnLocalUser").getBoundingClientRect();
+    const width = Math.min(320, window.innerWidth - 16);
+    accountPopover.style.width = width + "px";
+    const height = accountPopover.offsetHeight || 320;
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+    let top = rect.top - height - 10;
+    if(top < 8) top = rect.bottom + 10;
+    top = Math.max(8, Math.min(top, window.innerHeight - height - 8));
+    accountPopover.style.left = left + "px";
+    accountPopover.style.top = top + "px";
   }
   function closeAccountPopover(){
     accountPopover.hidden = true;
@@ -700,6 +713,8 @@
   document.addEventListener("keydown", (event)=>{
     if(event.key === "Escape"){ closeAccountPopover(); closeAccountModal(); }
   });
+  window.addEventListener("resize", closeAccountPopover);
+  window.addEventListener("scroll", closeAccountPopover, true);
 
   const WIP_META = {
     pdf:{eyebrow:"Workflow 01", title:"教材 PDF 转 MD", desc:"把扫描版或文字版教材转成结构化的 Markdown，保留章节、注释与图表位置。"},
