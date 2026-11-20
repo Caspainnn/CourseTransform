@@ -1237,7 +1237,7 @@ def run(job, version, contract, source, parent=None):
             rendered_source = next((p.get('source_slide') for p in read(version / 'plan.json')['pages'] if p['id'] == page['id']), None)
             if rendered_source != choice['source_slide']:
                 visual_blockers = []
-        if route_for(page) == 'template-fill' and visual_blockers:
+        if (choice.get("edit_mode") or route_for(page)) == 'template-fill' and visual_blockers:
             decision = ask(version / 'api/repair-strategy', page['id'], (
                 '判断原生文字填充页的视觉缺陷能否仅通过文字替换、换行和90%-105%原字号解决。'
                 '返回strategy=keep_source/rematch_source与reason。非文字图形、图标和背景几何不可移动。'
