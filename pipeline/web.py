@@ -8,9 +8,11 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import re
 import shutil
 import threading
+import time
 import uuid
 import zipfile
 from pathlib import Path
@@ -62,6 +64,43 @@ class PipelineService:
         self.lessons = LessonJobManager(self.root)
         self.lock = threading.Lock()
         self._recover_pdf()
+        self._prune_recent()
+
+    def _prune_recent(self):
+        """Drop transient hand-off copies after the retention window (default 7 days)."""
+        try:
+            days = int(os.getenv('PIPELINE_RETENTION_DAYS', '7'))
+        except ValueError:
+            days = 7
+        if days <= 0:
+            return
+        cutoff = time.time() - days * 86400
+        knowledge = self.data / 'knowledge'
+        removed = []
+        for entry_path in sorted(knowledge.glob('*/entry.json')):
+            entry = read_json(entry_path)
+            if not entry:
+                continue
+            try:
+                created = entry.get('created') or ''
+                stamp = time.mktime(time.strptime(created[:19], '%Y-%m-%dT%H:%M:%S'))
+            except (ValueError, TypeError):
+                continue
+            if stamp >= cutoff:
+                continue
+            removed.append(entry.get('fileId'))
+            shutil.rmtree(entry_path.parent, ignore_errors=True)
+        if not removed:
+            return
+        live = set()
+        for entry_path in knowledge.glob('*/entry.json'):
+            entry = read_json(entry_path) or {}
+            if entry.get('fileId'):
+                live.add(entry['fileId'])
+        for file_id in set(filter(None, removed)):
+            if file_id in live:
+                continue
+            shutil.rmtree(self.data / 'files' / file_id, ignore_errors=True)
 
     # ---- shared helpers ---------------------------------------------
     def _pdf_folder(self, ident):
@@ -694,6 +733,23 @@ def create_blueprint(data_dir):
         if not path:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         return send_file(path, as_attachment=True, download_name=path.name)
+
+    @bp.get('/lesson/jobs/<ident>/docx/<int:index>/blocks')
+    def lesson_docx_blocks(ident, index):
+        data = service.lessons.docx_blocks(ident, index)
+        if not data:
+            raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
+        return jsonify(data)
+
+    @bp.post('/lesson/jobs/<ident>/docx/<int:index>/edit')
+    def lesson_docx_edit(ident, index):
+        payload = request.get_json(silent=True) or {}
+        edits = payload.get('blocks')
+        if not isinstance(edits, list):
+            raise Problem('缺少编辑内容', 400, 'E_INVALID_INPUT')
+        result = service.lessons.edit_docx(ident, index, edits)
+        job = service.lessons.public(service.lessons.get(ident))
+        return jsonify({'job': job, 'edit': result})
 
     @bp.get('/lesson/jobs/<ident>/preview/<int:index>')
     def lesson_preview(ident, index):

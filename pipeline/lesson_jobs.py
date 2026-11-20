@@ -7,6 +7,7 @@ recoverable snapshots and exposes stage results to the unified Flask service.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import threading
 import uuid
@@ -232,7 +233,7 @@ class LessonJobManager:
         for item in self._flat_docx(job):
             entries.append({'index': len(entries) + 1, 'chapter_id': item['chapterId'],
                             'title': item['title'], 'url': f'/api/pipeline/lesson/jobs/{job["id"]}/docx/{len(entries) + 1}',
-                            'status': item['status'],
+                            'status': item['status'], 'revision': item.get('revision') or 1,
                             'previewUrl': f'/api/pipeline/lesson/jobs/{job["id"]}/preview/{item["chapterIndex"]}'})
         public['docx_files'] = entries
         if not isinstance(public.get('chapters'), list):
@@ -286,13 +287,113 @@ class LessonJobManager:
                 path = Path(str(item.get('path') or ''))
                 if path.is_file():
                     flat.append({'path': path, 'title': str(item.get('title') or result.get('title') or '教案'),
-                                 'status': status, 'chapterId': chapter_id, 'chapterIndex': chapter_index})
+                                 'status': status, 'chapterId': chapter_id, 'chapterIndex': chapter_index,
+                             'revision': item.get('revision') or 1})
             if not result.get('docx_files'):
                 path = Path(str((result.get('files') or {}).get('docx') or ''))
                 if path.is_file():
                     flat.append({'path': path, 'title': str(result.get('title') or '教案'),
-                                 'status': status, 'chapterId': chapter_id, 'chapterIndex': chapter_index})
+                                 'status': status, 'chapterId': chapter_id, 'chapterIndex': chapter_index,
+                                 'revision': result.get('docx_revision') or 1})
         return flat
+
+    def docx_blocks(self, ident, index):
+        """Return editable text blocks of one DOCX while preserving structure."""
+        path = self.docx_path(ident, index)
+        if not path:
+            return None
+        from docx import Document
+        doc = Document(str(path))
+        blocks = []
+        seen_cells = set()
+
+        def add_para(paragraph, prefix, kind):
+            text = paragraph.text if paragraph.text is not None else ''
+            blocks.append({'id': f'{prefix}{len(blocks) + 1:04d}', 'kind': kind,
+                           'style': paragraph.style.name if paragraph.style else '',
+                           'text': text})
+
+        for paragraph in doc.paragraphs:
+            add_para(paragraph, 'p', 'paragraph')
+        for t_index, table in enumerate(doc.tables):
+            for r_index, row in enumerate(table.rows):
+                for c_index, cell in enumerate(row.cells):
+                    key = id(cell._tc)
+                    if key in seen_cells:
+                        continue
+                    seen_cells.add(key)
+                    for p_index, paragraph in enumerate(cell.paragraphs):
+                        add_para(paragraph, f't{t_index}r{r_index}c{c_index}p', 'cell')
+        return {'title': path.stem, 'path': str(path), 'blocks': blocks}
+
+    def edit_docx(self, ident, index, edits):
+        """Apply text edits in place and keep the previous DOCX as a revision."""
+        path = self.docx_path(ident, index)
+        if not path:
+            raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
+        if not isinstance(edits, list) or not edits:
+            raise Problem('没有需要保存的修改', 400, 'E_INVALID_INPUT')
+        from docx import Document
+        doc = Document(str(path))
+        targets = {}
+        for paragraph in doc.paragraphs:
+            targets[f'p{len(targets) + 1:04d}'] = paragraph
+        seen_cells = set()
+        for t_index, table in enumerate(doc.tables):
+            for r_index, row in enumerate(table.rows):
+                for c_index, cell in enumerate(row.cells):
+                    key = id(cell._tc)
+                    if key in seen_cells:
+                        continue
+                    seen_cells.add(key)
+                    for p_index, paragraph in enumerate(cell.paragraphs):
+                        targets[f't{t_index}r{r_index}c{c_index}p{len(targets) + 1:04d}'] = paragraph
+        changed = 0
+        for item in edits:
+            if not isinstance(item, dict):
+                continue
+            paragraph = targets.get(str(item.get('id') or ''))
+            text = item.get('text')
+            if paragraph is None or not isinstance(text, str):
+                continue
+            if text == paragraph.text:
+                continue
+            if paragraph.runs:
+                paragraph.runs[0].text = text
+                for run in paragraph.runs[1:]:
+                    run.text = ''
+            else:
+                paragraph.add_run(text)
+            changed += 1
+        if not changed:
+            raise Problem('内容没有变化', 400, 'E_NO_CHANGE')
+        base_dir = Path(path).parent
+        while base_dir.name == 'edited':
+            base_dir = base_dir.parent
+        target_dir = base_dir / 'edited'
+        target_dir.mkdir(parents=True, exist_ok=True)
+        base_stem = re.sub(r'_r\d+$', '', Path(path).stem)
+        revision = 1
+        while (target_dir / f'{base_stem}_r{revision}{Path(path).suffix}').exists():
+            revision += 1
+        new_path = target_dir / f'{base_stem}_r{revision}{Path(path).suffix}'
+        doc.save(str(new_path))
+        job = self.get(ident)
+        if job:
+            for result in job.get('results') or []:
+                for entry in result.get('docx_files') or []:
+                    if Path(str(entry.get('path') or '')).resolve() == Path(path).resolve():
+                        entry['originalPath'] = entry.get('originalPath') or str(path)
+                        entry['path'] = str(new_path)
+                        entry['revision'] = revision
+                files = result.get('files') or {}
+                if files.get('docx') and Path(str(files['docx'])).resolve() == Path(path).resolve():
+                    files['docx'] = str(new_path)
+                    result['docx_revision'] = revision
+            job.setdefault('docx_edits', []).append({'index': index, 'path': str(new_path),
+                                                     'revision': revision, 'changed': changed})
+            self._snapshot(job)
+        return {'path': str(new_path), 'revision': revision, 'changed': changed}
 
     def docx_path(self, ident, index):
         job = self.get(ident)

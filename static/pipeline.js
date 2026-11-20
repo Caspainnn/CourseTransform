@@ -45,7 +45,7 @@
     pdfFile:null, activePdf:null, pdfTimer:null,
     artifacts:[], selectedArtifacts:new Set(),
     textbookFile:null, templates:[], images:[], imageCaptions:{}, knowledgeRefs:[], refRows:[], knowledgeCache:[], refChoice:{artifacts:new Set(), knowledge:new Set()},
-    activeLesson:null, lessonTimer:null,
+    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, docxBlocks:null, docxIndex:0, docxDirty:false,
     initialized:{pdf:false, word:false}
   };
 
@@ -667,7 +667,7 @@
         meta:record ? `PDF→MD · ${record.meta?.chars ?? 0} 字 · ${record.meta?.imageCount ?? 0} 图` : "PDF→MD 教材"});
     });
     state.knowledgeRefs.forEach(ref=>items.push({kind:"knowledge", id:ref.id, title:ref.title,
-      meta:`知识库 · ${isDocxTitle(ref.title) ? "DOCX 模板" : "Markdown 教材"}`}));
+      meta:`最近产物 · ${isDocxTitle(ref.title) ? "DOCX 模板" : "Markdown 教材"}`}));
     if (state.textbookFile) items.push({kind:"textbook", title:state.textbookFile.name,
       meta:`本地上传 · ${fileSize(state.textbookFile.size)}`});
     state.templates.forEach((file,index)=>items.push({kind:"template", index, title:file.name,
@@ -677,7 +677,7 @@
 
     box.classList.toggle("has-items", items.length > 0);
     if (!items.length){
-      box.innerHTML = '<div class="empty-ref">还没有引用任何资料，从知识库选择或上传本地文件</div>';
+      box.innerHTML = '<div class="empty-ref">还没有引用任何资料，从最近产物选择或上传本地文件</div>';
       return;
     }
     box.innerHTML = items.map(item=>{
@@ -742,7 +742,7 @@
         label:"教材"})),
       ...knowledge.filter(item=>isMarkdownTitle(item.title)).map(item=>({
         kind:"knowledge", id:item.id, title:item.title,
-        meta:`知识库 · ${item.meta || ""}`, label:"教材"}))
+        meta:`最近产物 · ${item.meta || ""}`, label:"教材"}))
     ];
     const seen = new Set();
     state.refRows = state.refRows.filter(row=>{
@@ -830,10 +830,12 @@
     const hasTextbook = state.selectedArtifacts.size > 0 || Boolean(state.textbookFile)
       || state.knowledgeRefs.some(ref=>isMarkdownTitle(ref.title));
     if (!hasTextbook){
-      toast("请先选择教材来源（PDF→MD 产物、知识库教材或本地 Markdown）");
+      toast("请先选择教材来源（PDF→MD 产物、最近产物教材或本地 Markdown）");
       return;
     }
     button.disabled = true;
+    state.wordStageHidden = false;
+    state.wordStartedAt = 0;
     $("#wordState").textContent = "创建任务…";
     try {
       const payload = {
@@ -889,8 +891,13 @@
     const open = event.target.closest("[data-open-lesson]");
     const retry = event.target.closest("[data-retry-lesson]");
     try {
-      if (open){ history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(open.dataset.openLesson)}`); await pollLesson(open.dataset.openLesson); }
+      if (open){
+        state.wordStageHidden = false; state.wordStartedAt = 0;
+        history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(open.dataset.openLesson)}`);
+        await pollLesson(open.dataset.openLesson);
+      }
       if (retry){
+        state.wordStageHidden = false; state.wordStartedAt = 0;
         const result = await api(`/api/pipeline/lesson/jobs/${retry.dataset.retryLesson}/retry`, "POST", {});
         history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(result.id)}`);
         await pollLesson(result.id);
@@ -903,23 +910,89 @@
     try {
       const job = await api(`/api/pipeline/lesson/jobs/${id}`);
       state.activeLesson = job;
-      renderLessonJob(job);
+      if (!state.wordStartedAt && job.created_at){
+        state.wordStartedAt = Date.parse(job.created_at) || Date.now();
+      }
       if (["queued","running"].includes(job.status)){
-        const total = job.progress?.total || 0;
-        const current = job.progress?.current || 0;
-        $("#wordState").textContent = job.status === "queued" ? "排队中…" : "生成中…";
-        state.lessonTimer = setTimeout(()=>pollLesson(id), 1800);
-        $("#wordProgressText").textContent = job.progressText + (total ? ` · ${current}/${total}` : "");
+        if (!state.wordStageHidden) showWordProgress(job);
+        else updateWordProgress(job);
+        state.lessonTimer = setTimeout(()=>pollLesson(id), 1400);
         return;
       }
+      stopWordClock();
+      hideWordProgress();
+      renderLessonJob(job);
       $("#wordState").textContent = "";
       await refreshWordJobs();
       state.artifacts = await api("/api/pipeline/artifacts?stage=pdf2md"); renderWordRefs();
-      if (job.status === "succeeded") toast("全部学时生成完成");
+      if (job.status === "succeeded"){
+        toast("全部学时生成完成");
+        setTimeout(()=>{ const box = $("#wordResults"); if (box && !box.hidden) box.scrollIntoView({behavior:"smooth", block:"start"}); }, 120);
+      }
       else if (job.status === "partial_failed") toast("部分章节失败；成功学时仍可下载与送入 PPT");
       else if (job.status === "failed") toast("生成失败：" + (job.error || "查看任务日志"));
     } catch (error) { showWordError(error.message); }
   }
+
+  function fmtElapsed(start){
+    const sec = Math.max(0, Math.floor((Date.now() - start) / 1000));
+    return `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(sec % 60).padStart(2, "0")}`;
+  }
+  function stopWordClock(){ if (state.wordClock){ clearInterval(state.wordClock); state.wordClock = null; } }
+  function startWordClock(){
+    stopWordClock();
+    state.wordClock = setInterval(()=>{
+      const timer = $("#wordProgressTimer");
+      if (timer) timer.textContent = `总进度 ${state.wordPct || 0}% · 已用 ${fmtElapsed(state.wordStartedAt || Date.now())}`;
+    }, 1000);
+  }
+  function showWordProgress(job){
+    $("#wordPageHead").hidden = true;
+    $("#wordStageGrid").hidden = true;
+    $("#wordResults").hidden = true;
+    $("#wordProgressStage").hidden = false;
+    $("#wordProgressTitle").textContent = "正在生成教案";
+    $("#wordProgressFile").textContent = job.source?.textbookName || job.id || "";
+    if (!state.wordStartedAt) state.wordStartedAt = Date.now();
+    startWordClock();
+    updateWordProgress(job);
+  }
+  function updateWordProgress(job){
+    const total = job.progress?.total || 0;
+    const current = job.progress?.current || 0;
+    let step = 0, pct = 6, label = job.progressText || "准备任务…";
+    if (job.status === "queued"){ pct = 5; label = "排队中…"; }
+    if (total){ step = 1; pct = 15; label = job.progressText || "拆分学时…"; }
+    if (total && current){ step = 2; pct = 15 + Math.round(70 * current / total); label = `生成第 ${current}/${total} 章…`; }
+    if (total && current >= total){ step = 3; pct = Math.max(pct, 90); label = "质检验收与打包 Word…"; }
+    if (job.status === "succeeded"){ step = 5; pct = 100; label = "完成，正在打开结果…"; }
+    else if (job.status === "running" && !total){ pct = Math.max(pct, Math.min(40, 8 + Math.floor((Date.now() - state.wordStartedAt) / 1000 * 0.6))); }
+    state.wordPct = pct;
+    $("#wordStageBar").style.width = pct + "%";
+    $("#wordStageTrack").setAttribute("aria-valuenow", String(pct));
+    $("#wordStageText").textContent = label;
+    document.querySelectorAll("#wordProgressSteps [data-word-step]").forEach(el=>{
+      const index = Number(el.dataset.wordStep);
+      el.classList.toggle("done", index < step);
+      el.classList.toggle("on", index === step);
+    });
+    const timer = $("#wordProgressTimer");
+    if (timer) timer.textContent = `总进度 ${pct}% · 已用 ${fmtElapsed(state.wordStartedAt || Date.now())}`;
+    $("#wordProgress").hidden = false;
+    $("#wordProgressBar").style.width = pct + "%";
+    $("#wordProgressText").textContent = job.progressText || label;
+  }
+  function hideWordProgress(){
+    $("#wordProgressStage").hidden = true;
+    $("#wordPageHead").hidden = false;
+    $("#wordStageGrid").hidden = false;
+  }
+
+  $("#wordProgressBack").addEventListener("click", ()=>{
+    state.wordStageHidden = true;
+    hideWordProgress();
+    toast("生成在后台继续，完成后会自动显示结果");
+  });
 
   function showWordError(message){
     $("#wordError").hidden = false;
@@ -958,8 +1031,9 @@
     $("#wordDocx").innerHTML = files.map(item => `
       <article class="result-card">
         <h3>${esc(item.title)}</h3>
-        <div class="rc-meta">${esc(item.chapter_id || "")} · ${badge(item.status)}</div>
+        <div class="rc-meta">${esc(item.chapter_id || "")} · ${badge(item.status)}${item.revision ? ` · 修订 r${item.revision}` : ""}</div>
         <div class="bar-actions">
+          <button class="btn btn-sm" data-docx-edit="${item.index}">编辑</button>
           <a class="btn btn-sm" href="${esc(item.url)}" download>下载 DOCX</a>
           ${item.previewUrl ? `<a class="btn btn-sm" href="${esc(item.previewUrl)}" target="_blank" rel="noopener">查看中间稿</a>` : ""}
           <button class="btn btn-sm btn-accent" data-docx-handoff="${item.index}" ${["ok","ok_with_warnings"].includes(item.status) ? "" : "disabled title='质检未通过，不能送入 PPT'"}>送入 PPT</button>
@@ -968,6 +1042,12 @@
   }
 
   $("#wordDocx").addEventListener("click", async (event)=>{
+    const edit = event.target.closest("[data-docx-edit]");
+    if (edit){
+      try { await openDocxEditor(Number(edit.dataset.docxEdit)); }
+      catch (error) { toast(error.message); }
+      return;
+    }
     const handoff = event.target.closest("[data-docx-handoff]");
     if (!handoff || !state.activeLesson) return;
     handoff.disabled = true;
@@ -979,6 +1059,80 @@
     } catch (error) {
       showWordError(error.message);
     } finally { handoff.disabled = false; }
+  });
+
+  /* ---------- lesson DOCX editor ---------- */
+  const docxModal = $("#docxEditModal");
+  function docxChanges(){
+    const changed = [];
+    document.querySelectorAll("#docxEditBlocks textarea").forEach(area=>{
+      if (area.value !== area.dataset.original){
+        changed.push({id: area.dataset.blockId, text: area.value});
+      }
+    });
+    return changed;
+  }
+  function refreshDocxCount(){
+    const count = docxChanges().length;
+    state.docxDirty = count > 0;
+    $("#docxEditCount").textContent = `${count} 处修改`;
+    document.querySelectorAll("#docxEditBlocks .docx-block").forEach(block=>{
+      const area = block.querySelector("textarea");
+      block.classList.toggle("changed", area.value !== area.dataset.original);
+    });
+    $("#docxEditSave").disabled = !count;
+  }
+  async function openDocxEditor(index){
+    if (!state.activeLesson) return;
+    const data = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${index}/blocks`);
+    state.docxIndex = index;
+    state.docxDirty = false;
+    const box = $("#docxEditBlocks");
+    box.innerHTML = "";
+    const blocks = (data.blocks || []).filter(block => String(block.text || "").trim());
+    blocks.forEach((block, position)=>{
+      const wrap = document.createElement("div");
+      wrap.className = "docx-block";
+      const label = document.createElement("label");
+      label.textContent = block.kind === "cell" ? `表格文字 ${position + 1}` : `段落 ${position + 1}`;
+      const area = document.createElement("textarea");
+      area.value = block.text;
+      area.dataset.blockId = block.id;
+      area.dataset.original = block.text;
+      area.rows = Math.min(6, Math.max(1, Math.ceil(block.text.length / 52)));
+      area.addEventListener("input", refreshDocxCount);
+      wrap.append(label, area);
+      box.append(wrap);
+    });
+    $("#docxEditTitle").textContent = `编辑教案 Word · ${data.title}`;
+    $("#docxEditHint").textContent = `共 ${blocks.length} 个可编辑段落；保存后生成新修订，原文件保留`;
+    refreshDocxCount();
+    docxModal.classList.add("open");
+    setTimeout(()=>{ const first = box.querySelector("textarea"); if (first) first.focus(); }, 80);
+  }
+  function closeDocxEditor(force){
+    if (!force && state.docxDirty && !confirm("有未保存的修改，确定关闭？")) return;
+    docxModal.classList.remove("open");
+    state.docxDirty = false;
+  }
+  $("#docxEditClose").addEventListener("click", ()=>closeDocxEditor(false));
+  $("#docxEditCancel").addEventListener("click", ()=>closeDocxEditor(false));
+  docxModal.addEventListener("click", (event)=>{ if (event.target === docxModal) closeDocxEditor(false); });
+  $("#docxEditSave").addEventListener("click", async ()=>{
+    const changes = docxChanges();
+    if (!changes.length){ toast("没有修改"); return; }
+    const button = $("#docxEditSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      const result = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${state.docxIndex}/edit`, "POST", {blocks: changes});
+      state.activeLesson = result.job;
+      state.docxDirty = false;
+      closeDocxEditor(true);
+      renderLessonJob(result.job);
+      toast(`已保存修订 r${result.edit.revision}（${result.edit.changed} 处）`);
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; button.textContent = "保存修订"; }
   });
 
   /* ================= init ================= */

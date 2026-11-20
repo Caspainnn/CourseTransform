@@ -327,6 +327,30 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(docx.status_code, 200)
         self.assertEqual(docx.data[:2], b'PK')
 
+        blocks = self.client.get(f"/api/pipeline/lesson/jobs/{job['id']}/docx/{ok['index']}/blocks").get_json()
+        self.assertTrue(blocks['blocks'])
+        target = next(block for block in blocks['blocks'] if block['text'].strip())
+        edited = self.client.post(
+            f"/api/pipeline/lesson/jobs/{job['id']}/docx/{ok['index']}/edit",
+            json={'blocks': [{'id': target['id'], 'text': target['text'] + '（本机修订）'}]},
+        )
+        self.assertEqual(edited.status_code, 200, edited.get_data(as_text=True))
+        edited_job = edited.get_json()['job']
+        revised = next(item for item in edited_job['docx_files'] if item['index'] == ok['index'])
+        self.assertEqual(revised['revision'], 1)
+        latest = self.client.get(revised['url'])
+        from docx import Document as Docx
+        text = '\n'.join(p.text for p in Docx(io.BytesIO(latest.data)).paragraphs)
+        self.assertIn('（本机修订）', text)
+
+        again = self.client.post(
+            f"/api/pipeline/lesson/jobs/{job['id']}/docx/{ok['index']}/edit",
+            json={'blocks': [{'id': target['id'], 'text': target['text'] + '（二次修订）'}]},
+        )
+        self.assertEqual(again.status_code, 200)
+        again_entry = next(item for item in again.get_json()['job']['docx_files'] if item['index'] == ok['index'])
+        self.assertEqual(again_entry['revision'], 2)
+
         artifact = self.client.post(f"/api/pipeline/lesson/jobs/{job['id']}/artifact/{ok['index']}")
         self.assertEqual(artifact.status_code, 201, artifact.get_data(as_text=True))
         artifact_id = artifact.get_json()['id']

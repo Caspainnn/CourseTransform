@@ -70,7 +70,7 @@
       .map(r=>Object.assign({}, r, {local:false}))
       .concat(state.localRefs);
     if(!items.length){
-      box.innerHTML = '<div class="empty-ref"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h6"/></svg><div>还没有引用任何资料，从知识库选择或上传本地文件</div></div>';
+      box.innerHTML = '<div class="empty-ref"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h6"/></svg><div>还没有引用任何资料，从最近产物选择或上传本地文件</div></div>';
     } else {
       box.innerHTML = items.map(r=>{
         const tag = r.type==="jiaoan" ? '<span class="tag tag-jiaoan">教案</span>'
@@ -659,7 +659,7 @@
       body.innerHTML = `
         <div class="acct-toolbar"><span>共 <b>${KB_DATA.length}</b> 份资料</span><button class="btn btn-sm" id="acctKbRefresh" type="button">刷新</button></div>
         <div class="acct-list">${rows}</div>
-        <p class="acct-note">知识库用于 PPT 阶段选材；教案阶段可在“教材与模板”中从知识库选择 Markdown 教材。</p>`;
+        <p class="acct-note">最近产物仅用于本次/近期交接；请及时下载 ZIP 自行保存。教案与 PPT 阶段可选择本机近期产物。</p>`;
       $("#acctKbRefresh").addEventListener("click", async ()=>{
         try{ await refreshKnowledge(); renderAccountModal("knowledge"); renderAccountSummary(); }
         catch(error){ report(error); }
@@ -684,7 +684,7 @@
   function openAccountModal(kind){
     const meta = {
       user:{title:"用户信息", sub:"本机账户与数据位置"},
-      knowledge:{title:"知识库", sub:"教案与教材资料"},
+      knowledge:{title:"最近产物", sub:"本次与近期生成的文件"},
       model:{title:"模型管理", sub:"服务端模型与运行时状态"}
     }[kind];
     closeAccountPopover();
@@ -835,9 +835,8 @@
   async function refreshKnowledge(){
     try{
       KB_DATA=await api("/api/knowledge");renderKB();renderRefs();
-      $(".db-status").innerHTML='<span class="dot" aria-hidden="true"></span>知识库已连接 · '+KB_DATA.length+' 份';
-      $("#knowledgeConnection").textContent="已连接";
-    }catch(error){$(".db-status").textContent="知识库未连接";$("#knowledgeConnection").textContent="连接失败";throw error;}
+      const conn=$("#knowledgeConnection"); if(conn) conn.textContent="可用";
+    }catch(error){const conn=$("#knowledgeConnection"); if(conn) conn.textContent="不可用";throw error;}
   }
   function taskForm(){
     return {...readForm(),count:state.count,style:state.style,template:state.template?.fileId||null,

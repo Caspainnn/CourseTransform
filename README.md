@@ -90,6 +90,8 @@ MINERU_COMMAND=E://YourProject//.mineru//Scripts//mineru-kit.exe
 
 服务重启后 `python scripts/doctor.py` 的 `mineru_cli` 应为 `true`。MinerU 可用时扫描件自动优先走 MinerU，失败会回退 RapidOCR（`PDF_OCR_ENGINE=mineru` 则严格报错）。
 
+“最近产物”只用于本次/近期交接，默认保留 7 天（`PIPELINE_RETENTION_DAYS`，0 表示不清理）后自动删除；请用“下载 ZIP”自行保存。
+
 密钥只在服务端读取；`.env`、`local-config.json`、`data/`、上传教材、模型日志与生成产物均被 `.gitignore` 排除。
 
 ## 4. 启动
@@ -115,15 +117,15 @@ MINERU_COMMAND=E://YourProject//.mineru//Scripts//mineru-kit.exe
 **② 教材 MD 转教案 Word**
 
 1. 在“基础信息填写”里填学科、年级、课时、课型、学时数等简报；
-2. 在“教材与模板”里点“从知识库选择”选 PDF→MD 产物或知识库 Markdown 教材，点“本地上传”补教案模板 `.docx` 与配图；
+2. 在“教材与模板”里点“从最近产物选择”选 PDF→MD 产物或知识库 Markdown 教材，点“本地上传”补教案模板 `.docx` 与配图；
 3. 模型固定使用服务端 `.env` 的默认配置，页面不展示接口与密钥；
-4. 生成后按学时下载 DOCX、查看中间稿与质检/验收结果。
+4. 生成过程展示 5 步进度动画；完成后按学时下载 DOCX、查看中间稿与质检/验收结果，并可“编辑”Word 正文，保存为新修订（原文件保留）。
 
 点击左侧栏底部“本机用户”，先弹出账户浮层（知识库份数、模型状态），再选择“用户信息 / 知识库 / 模型管理”打开对应详情弹窗；模型编辑暂为占位。
 
 **③ 教案 + 教材转 PPT**
 
-1. 从知识库选择教案/教材，或上传本地资料；
+1. 从最近产物选择教案/教材，或上传本地资料；
 2. 填课题、页数、风格，生成并编辑大纲；
 3. 原生制作后逐页查看真实 PowerPoint PNG，单页提出修改，确认后下载 PPTX。
 

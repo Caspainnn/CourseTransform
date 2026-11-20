@@ -777,9 +777,6 @@ input[type="range"]::-moz-range-thumb{
         <span id="crumbCurrent"><b>教案 + 教材转 PPT</b></span>
       </div>
       <div class="topbar-right">
-        <span class="db-status" title="已连接教学资源库">
-          <span class="dot" aria-hidden="true"></span>知识库连接中…
-        </span>
         <button class="icon-btn" aria-label="帮助与快捷键">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.4 2.4 0 1 1 3.2 2.3c-.6.2-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg>
         </button>
@@ -835,7 +832,7 @@ input[type="range"]::-moz-range-thumb{
           <div>
             <div class="eyebrow">Workflow 03 / Presentation</div>
             <h1>教案与教材，<em>一键成稿</em></h1>
-            <p>引用知识库中的教案与教材，套用学校模板，三步生成可讲解的课堂 PPT。全程可改，草稿确认后才导出。</p>
+            <p>引用最近产物中的教案与教材，套用学校模板，三步生成可讲解的课堂 PPT。全程可改，草稿确认后才导出。</p>
           </div>
           <div class="head-actions">
             <button class="btn" id="btnDraftHistory">
@@ -977,7 +974,7 @@ input[type="range"]::-moz-range-thumb{
                 <div class="ref-actions">
                   <button class="btn" id="btnOpenKB">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
-                    从知识库选择
+                    从最近产物选择
                   </button>
                   <button class="btn" id="btnUploadRef">
                     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="m7.5 9.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
@@ -1277,14 +1274,25 @@ input[type="range"]::-moz-range-thumb{
 
       <!-- ===== Feature: MD → Lesson Word ===== -->
       <div id="view-word" hidden>
-        <div class="page-head">
+        <div class="page-head" id="wordPageHead">
           <div>
             <div class="eyebrow">Workflow 02 / Lesson plan</div>
             <h1>教材 MD，<em>套模板成教案</em></h1>
             <p>整章教材与单学时模板交给教案引擎：按实验数拆学时，每个学时一份原位套模板 Word，并保留质检与验收结果。</p>
           </div>
         </div>
-        <div class="stage-grid">
+        <section class="gen-stage word-progress" id="wordProgressStage" hidden aria-live="polite">
+          <div class="gen-ring" aria-hidden="true"></div>
+          <h2 id="wordProgressTitle">正在生成教案</h2>
+          <p id="wordStageText">准备任务…</p>
+          <div class="progress" id="wordStageTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="wordStageBar"></i></div>
+          <div class="gen-steps" id="wordProgressSteps">
+            <span data-word-step="0">解析教材</span><span data-word-step="1">拆分学时</span><span data-word-step="2">生成内容</span><span data-word-step="3">质检验收</span><span data-word-step="4">打包 Word</span>
+          </div>
+          <div class="progress-foot"><span id="wordProgressFile"></span><span id="wordProgressTimer">总进度 0% · 已用 00:00</span></div>
+          <div class="progress-actions"><button class="btn btn-sm" id="wordProgressBack">后台运行</button></div>
+        </section>
+        <div class="stage-grid" id="wordStageGrid">
           <div class="stack">
             <section class="card">
               <div class="card-head">
@@ -1312,14 +1320,14 @@ input[type="range"]::-moz-range-thumb{
                 <div><h2 class="card-title">2. 教材与模板</h2><p class="card-sub">教材 Markdown、单学时模板与配图会一起交给教案引擎</p></div>
               </div>
               <div class="ref-head">
-                <div><b>参考资料</b><span>来自教材库与知识库，可多选</span></div>
+                <div><b>参考资料</b><span>来自最近产物，可多选</span></div>
                 <span class="badge ok">已连接</span>
               </div>
-              <div id="wordRefList" class="word-ref-list"><div class="empty-ref">还没有引用任何资料，从知识库选择或上传本地文件</div></div>
+              <div id="wordRefList" class="word-ref-list"><div class="empty-ref">还没有引用任何资料，从最近产物选择或上传本地文件</div></div>
               <div class="ref-picker" role="group" aria-label="添加参考资料">
                 <button type="button" id="wordKbPick">
                   <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></svg>
-                  从知识库选择
+                  从最近产物选择
                 </button>
                 <button type="button" id="wordLocalUpload">
                   <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
@@ -1327,7 +1335,7 @@ input[type="range"]::-moz-range-thumb{
                 </button>
               </div>
               <input type="file" id="wordLocalFiles" accept=".md,.markdown,.docx,image/*" multiple hidden aria-label="本地上传教材、模板或配图">
-              <div class="hint" style="margin-top:8px">知识库提供 Markdown 教材；教案模板与配图可本地上传；配图可填写图注。</div>
+              <div class="hint" style="margin-top:8px">最近产物提供 Markdown 教材；教案模板与配图可本地上传；配图可填写图注。</div>
               <div class="bar-actions" style="margin-top:16px">
                 <button class="btn btn-accent" id="wordStart">开始生成教案</button>
                 <span id="wordState" class="hint" aria-live="polite"></span>
@@ -1379,7 +1387,7 @@ input[type="range"]::-moz-range-thumb{
             <circle cx="88" cy="36" r="12" stroke="#b85c38" stroke-dasharray="3 4"/>
           </svg>
           <h2>这个工作台还在打磨</h2>
-          <p>PDF 解析与教案 Word 生成正在内测。先使用已上线的 PPT 生成流程，用知识库里的教案和教材直接成稿。</p>
+          <p>PDF 解析与教案 Word 生成正在内测。先使用已上线的 PPT 生成流程，用最近产物里的教案和教材直接成稿。</p>
           <button class="btn btn-accent" data-feature="ppt">回到 PPT 生成</button>
         </div>
       </div>
@@ -1394,7 +1402,7 @@ input[type="range"]::-moz-range-thumb{
           <div><b>本机用户</b><span>本地教学工作台</span></div>
         </div>
         <div class="ap-stats">
-          <div><span>知识库</span><b id="apKbCount">0 份</b></div>
+          <div><span>最近产物</span><b id="apKbCount">0 份</b></div>
           <div><span>模型服务</span><b id="apModelState">检查中…</b></div>
         </div>
         <div class="ap-menu">
@@ -1404,7 +1412,7 @@ input[type="range"]::-moz-range-thumb{
           </button>
           <button type="button" data-account-panel="knowledge" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7"/></svg>
-            <span><b>知识库</b><small>教案与教材资料</small></span><em id="apKbBadge">0</em>
+            <span><b>最近产物</b><small>本次与近期生成的文件</small></span><em id="apKbBadge">0</em>
           </button>
           <button type="button" data-account-panel="model" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
@@ -1414,13 +1422,35 @@ input[type="range"]::-moz-range-thumb{
         <div class="ap-foot">本机单用户 · 资料与任务仅保存在本机</div>
       </div>
 
+<!-- ==== Lesson DOCX edit modal ==== -->
+<div class="modal" id="docxEditModal" role="dialog" aria-modal="true" aria-labelledby="docxEditTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div><h2 id="docxEditTitle">编辑教案 Word</h2><p id="docxEditHint">修改正文与表格文字，保存后生成新修订，原文件保留</p></div>
+      <button class="icon-btn" id="docxEditClose" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="docx-edit-list" id="docxEditBlocks"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="picked" id="docxEditCount">0 处修改</span>
+      <div class="bar-actions">
+        <button class="btn btn-sm" id="docxEditCancel" type="button">取消</button>
+        <button class="btn btn-sm btn-accent" id="docxEditSave" type="button">保存修订</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ==== Knowledge base modal ==== -->
 <div class="modal" id="kbModal" role="dialog" aria-modal="true" aria-labelledby="kbTitle">
   <div class="modal-card">
     <div class="modal-head">
       <div>
-        <h2 id="kbTitle">从知识库选择参考资料</h2>
-        <p>本机教学资源库· 支持同时引用教案与教材，最多 6 份</p>
+        <h2 id="kbTitle">从最近产物选择参考资料</h2>
+        <p>仅保留近期生成的文件，最多同时引用 6 份</p>
       </div>
       <button class="icon-btn" id="kbClose" aria-label="关闭">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1443,12 +1473,12 @@ input[type="range"]::-moz-range-thumb{
       </div>
       <div class="kb-main">
         <div class="kb-search">
-          <input class="control" id="kbSearch" type="search" placeholder="搜索教案或教材名称、单元、作者…" aria-label="搜索知识库">
-          <button class="btn btn-sm" id="kbRefresh" title="重新同步知识库">刷新</button>
+          <input class="control" id="kbSearch" type="search" placeholder="搜索教案或教材名称、单元、作者…" aria-label="搜索最近产物">
+          <button class="btn btn-sm" id="kbRefresh" title="重新同步最近产物">刷新</button>
         </div>
         <div class="bar-actions" style="padding:8px 0">
         <select id="knowledgeType" class="control" aria-label="入库分类"><option value="jiaocai">教材</option><option value="jiaoan">教案</option></select>
-        <button class="btn btn-sm" id="knowledgeUpload">上传到知识库</button><input id="knowledgeFile" type="file" accept=".doc,.docx,.pdf,.md,.txt" hidden>
+        <button class="btn btn-sm" id="knowledgeUpload">上传到最近产物</button><input id="knowledgeFile" type="file" accept=".doc,.docx,.pdf,.md,.txt" hidden>
         </div><div class="kb-list" id="kbList"><!-- JS renders --></div>
       </div>
     </div>
@@ -1491,8 +1521,8 @@ input[type="range"]::-moz-range-thumb{
   <div class="modal-card">
     <div class="modal-head">
       <div>
-        <h2 id="wordRefTitle">从知识库选择教材与模板</h2>
-        <p>可选 PDF→MD 教材产物、知识库中的 Markdown 教材与 DOCX 模板</p>
+        <h2 id="wordRefTitle">从最近产物选择教材与模板</h2>
+        <p>可选 PDF→MD 教材产物、最近产物中的 Markdown 教材与 DOCX 模板</p>
       </div>
       <button class="icon-btn" id="wordRefClose" aria-label="关闭">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1585,6 +1615,14 @@ input[type="range"]::-moz-range-thumb{
 .stage-result{margin-top:18px;}
 .notice.small{font-size:11.5px;margin-top:12px;align-items:flex-start;}
 .notice.small svg{width:13px;height:13px;flex:0 0 13px;margin-top:2px;}
+.word-progress{max-width:760px;margin:14px auto 0;}
+.docx-edit-list{display:flex;flex-direction:column;gap:10px;padding:16px 20px;overflow:auto;max-height:62vh;}
+.docx-block{display:flex;flex-direction:column;gap:4px;}
+.docx-block label{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);}
+.docx-block textarea{width:100%;min-height:44px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.6;color:var(--ink);background:#fffdf9;}
+.docx-block textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent-soft-h);}
+.docx-block.changed textarea{border-color:var(--accent-soft-h);background:#fff7f2;}
+#docxEditModal .modal-body{display:block;padding:0;overflow:hidden;}
 .notice.danger{background:#fdf6f4;border-color:#efd3c8;color:#8d3a26;}
 .notice.danger svg{stroke:#b4482d;}
 
