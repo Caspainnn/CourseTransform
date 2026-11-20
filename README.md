@@ -160,7 +160,7 @@ data/
 ## 7. 测试与本次实测
 
 ```powershell
-python -m pytest -q          # 89 passed, 1 skipped（2026-11-20）
+python -m pytest -q          # 90 passed, 1 skipped（2026-11-20）
 python scripts/doctor.py            # mineru_cli 为可选检查
 node --check static/workbench.js
 node --check static/pipeline.js
@@ -199,7 +199,7 @@ jiaoan/                 教案引擎（来自“模板-->教案”提交包，�
 pptnative/ webapp/      PPT 原生制作、版本、锁（来自 stage3）
 static/                 工作台 HTML + 原生 JS（workbench.js 基线，pipeline.js 新页面）
 examples/               合成演示教材 PDF、教材 md、模板、图
-tests/                  89 项测试（含 12 项阶段集成测试）
+tests/                  90 项测试（含 13 项阶段集成测试）
 docs/                   原 stage3 文档 + docs/INTEGRATION.md
 scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```

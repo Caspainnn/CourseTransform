@@ -572,7 +572,7 @@ def render_nine_section(
     if title_p is not None:
         lesson_no = data["meta"].get("lesson_no", 1)
         _set_para_text(title_p, f"第{lesson_no}学时 {data['meta']['lesson_title']}\n教学设计")
-    subtitle = next((p for p in doc.paragraphs if p.style and p.style.name == "Normal" and "课型" in p.text), None)
+    subtitle = next((p for p in doc.paragraphs if "课型" in p.text), None)
     if subtitle is not None:
         _set_para_text(
             subtitle,
@@ -587,7 +587,7 @@ def render_nine_section(
         label = normalize_label(heading.text)
         h3_sample = next((b for b in body if isinstance(b, Paragraph) and b.style and b.style.name == "Heading 3"), None)
         bullet_sample = next((b for b in body if isinstance(b, Paragraph) and b.style and b.style.name == "List Paragraph"), None)
-        normal_sample = next((b for b in body if isinstance(b, Paragraph) and b.style and b.style.name == "Normal"), None)
+        normal_sample = next((b for b in body if isinstance(b, Paragraph) and not (b.style and b.style.name.startswith("Heading"))), None)
         table_sample = next((b for b in body if isinstance(b, Table)), None)
         if bullet_sample is None:
             bullet_sample = normal_sample
@@ -654,13 +654,16 @@ def render_nine_section(
         elif label.startswith("教学反思"):
             if table_sample is not None:
                 items.append(("table", table_sample, [[r["observation"], r["risk"], ""] for r in data["reflection"][:4]]))
-            items.append(("para", normal_sample, ""))
+            if normal_sample is not None:
+                items.append(("para", normal_sample, ""))
 
         # 删除原栏目正文，按模板样式重建
         for old in body:
             old._element.getparent().remove(old._element)
         anchor = heading._p
         for kind, sample, value in items:
+            if sample is None:
+                continue
             el = _clone_para(sample, value) if kind == "para" else _fill_table(sample, value)
             anchor.addnext(el)
             anchor = el

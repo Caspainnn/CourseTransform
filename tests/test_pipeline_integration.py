@@ -369,6 +369,28 @@ class PipelineIntegrationTests(unittest.TestCase):
             self.assertEqual(blocked.status_code, 409)
             self.assertEqual(blocked.get_json()['code'], 'E_QUALITY_FAILED')
 
+    def test_nine_section_template_keeps_layout(self):
+        from docx import Document as Docx
+        template = ROOT / 'tests' / 'fixtures' / 'nine_section_template.docx'
+        textbook = ROOT / 'examples' / 'textbook_with_images.md'
+        with open(textbook, 'rb') as book, open(template, 'rb') as tpl:
+            response = self.client.post(
+                '/api/pipeline/lesson/jobs', content_type='multipart/form-data',
+                data={'payload': json.dumps({'offline': True}, ensure_ascii=False),
+                      'textbook': (book, textbook.name), 'templates': (tpl, template.name)},
+            )
+        self.assertEqual(response.status_code, 202, response.get_data(as_text=True))
+        job = wait_job(self.client, f"/api/pipeline/lesson/jobs/{response.get_json()['id']}", timeout=120)
+        self.assertIn(job['status'], ('succeeded', 'partial_failed'), job.get('error'))
+        ok = next(item for item in job['docx_files'] if item['status'] in ('ok', 'ok_with_warnings'))
+        doc = Docx(io.BytesIO(self.client.get(ok['url']).data))
+        shapes = [(len(table.rows), len(table.columns)) for table in doc.tables]
+        self.assertEqual(shapes[:5], [(7, 2), (5, 4), (9, 6), (5, 2), (5, 3)])
+        texts = [paragraph.text for paragraph in doc.paragraphs]
+        self.assertTrue(any('课程基本信息' in text for text in texts))
+        self.assertTrue(any(text.startswith('第1学时') for text in texts))
+        self.assertFalse(any('按模板填充 DOCX 失败' in warning for warning in job.get('warnings') or []))
+
     def test_lesson_from_knowledge_refs_and_handoff_keeps_source(self):
         pdf = self._pdf_job()
         handoff = self.client.post('/api/pipeline/handoff/ppt',

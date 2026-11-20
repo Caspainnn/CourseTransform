@@ -1221,7 +1221,7 @@ input[type="range"]::-moz-range-thumb{
           </section>
           <section class="card">
             <div class="card-head">
-              <div><h2 class="card-title">解析任务</h2></div>
+              <div><h2 class="card-title">历史任务</h2></div>
               <button class="btn btn-sm" id="pdfRefresh">刷新</button>
             </div>
             <div id="pdfJobs" class="job-list horizontal"><div class="empty-ref">还没有解析任务</div></div>
@@ -1572,13 +1572,12 @@ input[type="range"]::-moz-range-thumb{
 .status-card{position:sticky;top:88px;}
 .pdf-workspace{display:flex;flex-direction:column;gap:16px;}
 .pdf-workspace>.card{width:100%;}
-#pdfJobs{display:flex;flex-direction:row;flex-wrap:nowrap;gap:12px;overflow-x:auto;overflow-y:hidden;padding:0 0 8px;scrollbar-width:thin;scrollbar-color:#cfc6b8 transparent;overscroll-behavior-x:contain;}
-#pdfJobs .job-card{flex:0 0 280px;width:280px;max-width:280px;min-width:0;}
-#pdfJobs .empty-ref{flex:1;min-width:240px;}
-#pdfJobs::-webkit-scrollbar{height:8px;}
-#pdfJobs::-webkit-scrollbar-track{background:transparent;}
-#pdfJobs::-webkit-scrollbar-thumb{background:#d8d0c4;border-radius:99px;}
-#pdfJobs::-webkit-scrollbar-thumb:hover{background:#c4b9a9;}
+#pdfJobs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+#pdfJobs .job-card{width:auto;max-width:none;min-width:0;}
+#pdfJobs .empty-ref{grid-column:1/-1;}
+@media (max-width:1200px){#pdfJobs{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media (max-width:900px){#pdfJobs{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media (max-width:600px){#pdfJobs{grid-template-columns:1fr;}}
 .subhead{font-size:12px;font-weight:600;color:var(--ink-2);margin:4px 0 8px;letter-spacing:.02em;}
 .drop-sm{padding:14px;}
 .picked-file{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fbfaf7;font-size:12.5px;}
