@@ -156,13 +156,66 @@ class PipelineService:
                   ('id', 'status', 'created', 'updated', 'fileName', 'size', 'sha256', 'error', 'code')}
         public['chapters'] = [
             {key: chapter.get(key) for key in
-             ('index', 'title', 'mdName', 'chars', 'pages', 'imageCount', 'artifactId')}
+             ('index', 'title', 'mdName', 'chars', 'pages', 'imageCount', 'artifactId', 'revision', 'edited')}
             for chapter in (job.get('chapters') or [])
         ]
         public['log'] = (job.get('log') or [])[-200:]
         public['result'] = {key: (job.get('result') or {}).get(key) for key in
                             ('pages', 'images', 'ocr', 'ocrPages', 'ocrConfidence', 'ocrDpi')}
         return public
+
+    def save_pdf_chapter(self, ident, index, markdown):
+        """Store an edited chapter as a new immutable artifact revision."""
+        job = self._pdf_job(ident)
+        if not job:
+            raise Problem('任务不存在', 404, 'E_NOT_FOUND')
+        chapters = job.get('chapters') or []
+        if not 0 < index <= len(chapters):
+            raise Problem('章节不存在', 404, 'E_NOT_FOUND')
+        if job.get('status') != 'succeeded':
+            raise Problem('任务尚未完成，无法保存修订', 409, 'E_JOB_NOT_READY')
+        text = str(markdown or '').replace('\r\n', '\n')
+        if not text.strip():
+            raise Problem('章节内容不能为空', 400, 'E_EMPTY_CONTENT')
+        if len(text.encode('utf-8')) > 2 * 1024**2:
+            raise Problem('章节内容超过 2MB，请拆分后再保存', 400, 'E_CONTENT_TOO_LARGE')
+
+        chapter = chapters[index - 1]
+        artifact = self.artifacts.get(chapter.get('artifactId') or '')
+        if not artifact:
+            raise Problem('章节产物不存在', 404, 'E_NOT_FOUND')
+        folder = self.artifacts.folder(artifact['id'])
+        md_name = (artifact.get('meta') or {}).get('mdName') or f'{chapter["title"]}.md'
+        target = self.root / 'pdf' / ident / 'out' / 'edited'
+        target.mkdir(parents=True, exist_ok=True)
+        md_path = target / Path(md_name).name
+        md_path.write_text(text, encoding='utf-8', newline='\n')
+
+        images = []
+        for rel in (artifact.get('files') or {}).get('images') or []:
+            source = folder / rel
+            if source.is_file():
+                images.append(str(source))
+        revision = int(chapter.get('revision') or 1) + 1
+        record = self.artifacts.register(
+            stage='pdf2md',
+            title=chapter['title'],
+            chapter={'index': chapter.get('index'), 'title': chapter.get('title'),
+                     'pages': chapter.get('pages') or []},
+            source={'jobId': ident, 'pdfName': job.get('fileName'),
+                    'pdfSha256': job.get('sha256'), 'pdfPath': job.get('sourcePath'),
+                    'editedFrom': artifact['id'], 'revision': revision},
+            files={'md': md_path, 'images': images},
+            meta={'chars': len(text), 'imageCount': len(images), 'mdName': md_path.name,
+                  'edited': True, 'revision': revision},
+        )
+        chapter.update(artifactId=record['id'], mdName=md_path.name, chars=len(text),
+                       revision=revision, edited=True, updated=now())
+        job['chapters'] = chapters
+        job['updated'] = now()
+        job['log'].append(f'保存第 {index} 章修订 r{revision}（{len(text)} 字符）')
+        self._save_pdf_job(job)
+        return job
 
     # ---- publishing --------------------------------------------------
     def publish(self, *, source_path, name, kind, type_, origin, assets=None, text=None):
@@ -355,6 +408,30 @@ def create_blueprint(data_dir):
         if not path:
             raise Problem('Markdown 文件不存在', 404, 'E_NOT_FOUND')
         return send_file(path, mimetype='text/markdown; charset=utf-8')
+
+    @bp.post('/pdf/jobs/<ident>/chapters/<int:index>')
+    def pdf_save_chapter(ident, index):
+        payload = request.get_json(silent=True) or {}
+        markdown = payload.get('markdown')
+        if not isinstance(markdown, str):
+            raise Problem('缺少 markdown 内容', 400, 'E_INVALID_INPUT')
+        job = service.save_pdf_chapter(ident, index, markdown)
+        return jsonify(service._pdf_public(job))
+
+    @bp.get('/pdf/jobs/<ident>/images/<int:index>/<path:name>')
+    def pdf_image(ident, index, name):
+        job = service._pdf_job(ident)
+        chapters = job.get('chapters') or [] if job else []
+        if not job or not 0 < index <= len(chapters):
+            raise Problem('章节不存在', 404, 'E_NOT_FOUND')
+        if Path(name).name != name:
+            raise Problem('图片不存在', 404, 'E_NOT_FOUND')
+        artifact = service.artifacts.get(chapters[index - 1].get('artifactId') or '')
+        folder = service.artifacts.folder(artifact['id']) if artifact else None
+        path = (folder / 'images' / name).resolve() if folder else None
+        if not path or not path.is_file() or not path.is_relative_to(folder.resolve()):
+            raise Problem('图片不存在', 404, 'E_NOT_FOUND')
+        return send_file(path, conditional=True, max_age=86400)
 
     @bp.get('/pdf/jobs/<ident>/download/<int:index>')
     def pdf_download(ident, index):

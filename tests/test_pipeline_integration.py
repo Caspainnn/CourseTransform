@@ -96,6 +96,47 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertTrue(download.data.startswith('# 第一章'.encode('utf-8')))
 
+    def test_edit_chapter_creates_revision_and_serves_images(self):
+        job = self._pdf_job()
+        chapter = next(item for item in job['chapters'] if item['imageCount'])
+        original_id = chapter['artifactId']
+        edited = '# 第一章 走进人工智能\n\n人工修改后的正文。\n'
+
+        response = self.client.post(
+            f"/api/pipeline/pdf/jobs/{job['id']}/chapters/{chapter['index']}",
+            json={'markdown': edited},
+        )
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        data = response.get_json()
+        updated = next(item for item in data['chapters'] if item['index'] == chapter['index'])
+        self.assertEqual(updated['revision'], 2)
+        self.assertTrue(updated['edited'])
+        self.assertEqual(updated['chars'], len(edited))
+        self.assertNotEqual(updated['artifactId'], original_id)
+
+        preview = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/{chapter['index']}")
+        self.assertEqual(preview.get_data(as_text=True).replace('\r\n', '\n'), edited)
+        download = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/download/{chapter['index']}")
+        self.assertEqual(download.get_data(as_text=True).replace('\r\n', '\n'), edited)
+
+        record = json.loads((self.tmp / 'artifacts' / updated['artifactId'] / 'artifact.json').read_text(encoding='utf-8'))
+        self.assertTrue(record['meta']['edited'])
+        self.assertEqual(record['meta']['revision'], 2)
+        self.assertTrue((self.tmp / 'artifacts' / original_id / 'artifact.json').is_file())
+        image = Path(record['files']['images'][0]).name
+        served = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/images/{chapter['index']}/{image}")
+        self.assertEqual(served.status_code, 200)
+        self.assertTrue(served.content_type.startswith('image/'))
+        blocked = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/images/{chapter['index']}/job.json")
+        self.assertEqual(blocked.status_code, 404)
+
+        empty = self.client.post(
+            f"/api/pipeline/pdf/jobs/{job['id']}/chapters/{chapter['index']}",
+            json={'markdown': '   '},
+        )
+        self.assertEqual(empty.status_code, 400)
+        self.assertEqual(empty.get_json()['code'], 'E_EMPTY_CONTENT')
+
     def test_scanned_pdf_reports_ocr_required_when_disabled(self):
         scanned = self.tmp / 'scanned.pdf'
         source = pymupdf.open(str(DEMO_PDF))

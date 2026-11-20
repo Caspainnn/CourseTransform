@@ -1185,14 +1185,28 @@ input[type="range"]::-moz-range-thumb{
 
       <!-- ===== Feature: PDF → Markdown ===== -->
       <div id="view-pdf" hidden>
-        <div class="page-head">
+        <div class="page-head" id="pdfPageHead">
           <div>
             <div class="eyebrow">Workflow 01 / Textbook</div>
             <h1>教材 PDF，<em>转成可编辑 MD</em></h1>
             <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版自动走本机 OCR；识别失败会明确报错，不伪造文字。</p>
           </div>
         </div>
-        <div class="stage-grid">
+
+        <section class="gen-stage pdf-progress" id="pdfProgress" hidden aria-live="polite">
+          <div class="gen-ring" aria-hidden="true"></div>
+          <h2 id="pdfProgressTitle">正在解析教材</h2>
+          <p id="pdfProgressText">准备上传 PDF…</p>
+          <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pdfProgressTrack"><i id="pdfProgressBar"></i></div>
+          <div class="gen-steps" id="pdfProgressSteps">
+            <span data-pdf-step="0">检测文字层</span><span data-pdf-step="1">OCR 识别</span><span data-pdf-step="2">切分章节</span><span data-pdf-step="3">导出原图</span><span data-pdf-step="4">生成 Markdown</span>
+          </div>
+          <div class="progress-foot"><span id="pdfProgressFile"></span><span id="pdfProgressTimer">00:00</span></div>
+          <div class="progress-log" id="pdfProgressLog" hidden></div>
+          <div class="progress-actions"><button class="btn btn-sm" id="pdfProgressBack">后台运行</button></div>
+        </section>
+
+        <div class="stage-grid" id="pdfWorkspace">
           <section class="card">
             <div class="card-head">
               <div><h2 class="card-title">选择教材 PDF</h2><p class="card-sub">仅本机解析，文件不会自动发往模型服务</p></div>
@@ -1224,12 +1238,50 @@ input[type="range"]::-moz-range-thumb{
             <div class="notice small"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>未完成任务在重启后标记为中断，原始 PDF 保留，可重试。</span></div>
           </aside>
         </div>
-        <section id="pdfResult" class="card stage-result" hidden>
-          <div class="card-head">
-            <div><h2 class="card-title" id="pdfResultTitle">解析结果</h2><p class="card-sub" id="pdfResultMeta"></p></div>
-            <button class="btn btn-sm" id="pdfSendAll" disabled>全部送入教案</button>
+        <div id="pdfError" class="notice danger" hidden role="alert"><span id="pdfErrorText"></span></div>
+
+        <section class="doc-stage" id="pdfDocStage" hidden>
+          <div class="doc-stage-head">
+            <button class="btn btn-sm" id="pdfDocBack">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6"/><path d="m11 7-5 5 5 5"/></svg>
+              返回解析
+            </button>
+            <div class="doc-stage-title">
+              <h2 id="pdfDocTitle">解析结果</h2>
+              <p class="hint" id="pdfDocMeta"></p>
+            </div>
+            <div class="bar-actions">
+              <button class="btn btn-sm" id="pdfSendAll" disabled>全部送入教案</button>
+            </div>
           </div>
-          <div id="pdfChapters" class="result-grid"></div>
+          <div class="doc-stage-body">
+            <aside class="doc-nav" id="pdfDocNav" aria-label="章节目录"></aside>
+            <article class="doc-panel">
+              <div class="doc-toolbar">
+                <div class="seg" role="tablist" aria-label="视图切换">
+                  <button class="seg-btn on" type="button" role="tab" aria-selected="true" data-pdf-view="render">Markdown 渲染</button>
+                  <button class="seg-btn" type="button" role="tab" aria-selected="false" data-pdf-view="text">纯文本</button>
+                </div>
+                <span class="doc-status" id="pdfDocStatus"></span>
+                <div class="bar-actions doc-actions">
+                  <button class="btn btn-sm" id="pdfDocEdit">编辑</button>
+                  <button class="btn btn-sm" id="pdfDocDownload">下载 MD</button>
+                  <button class="btn btn-sm" id="pdfDocImages" hidden>下载原图</button>
+                  <button class="btn btn-sm btn-accent" id="pdfDocHandoff">送入教案</button>
+                </div>
+              </div>
+              <div class="doc-view md-body" id="pdfDocRender" role="tabpanel"></div>
+              <pre class="doc-view doc-raw" id="pdfDocText" hidden></pre>
+              <textarea class="doc-view doc-editor" id="pdfDocEditor" hidden spellcheck="false" aria-label="编辑章节 Markdown"></textarea>
+              <div class="doc-edit-actions" id="pdfDocEditActions" hidden>
+                <span class="hint" id="pdfDocDirty">保存后生成新的修订，原始版本仍保留</span>
+                <div class="bar-actions">
+                  <button class="btn btn-sm" id="pdfDocCancel">取消</button>
+                  <button class="btn btn-sm btn-accent" id="pdfDocSave">保存修订</button>
+                </div>
+              </div>
+            </article>
+          </div>
         </section>
       </div>
 
@@ -1537,6 +1589,83 @@ input[type="range"]::-moz-range-thumb{
 .stage-result{margin-top:18px;}
 .notice.small{font-size:11.5px;margin-top:12px;align-items:flex-start;}
 .notice.small svg{width:13px;height:13px;flex:0 0 13px;margin-top:2px;}
+.notice.danger{background:#fdf6f4;border-color:#efd3c8;color:#8d3a26;}
+.notice.danger svg{stroke:#b4482d;}
+
+/* ==== PDF parse progress ==== */
+.pdf-progress{max-width:760px;margin:14px auto 0;}
+.pdf-progress .gen-ring{width:58px;height:58px;}
+.pdf-progress .gen-steps{flex-wrap:wrap;justify-content:center;}
+.pdf-progress .gen-steps span{white-space:nowrap;color:var(--ink-3);}
+.pdf-progress .gen-steps span.on{color:var(--accent);font-weight:600;}
+.pdf-progress .gen-steps span.done{color:var(--sage);}
+.pdf-progress .gen-steps span::before{content:"○ ";}
+.pdf-progress .gen-steps span.on::before{content:"◉ ";}
+.pdf-progress .gen-steps span.done::before{content:"✓ ";}
+.progress-foot{display:flex;justify-content:space-between;gap:12px;max-width:520px;margin:10px auto 0;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.progress-log{margin:16px auto 0;max-width:520px;text-align:left;background:#fbfaf7;border:1px dashed var(--line);border-radius:10px;padding:9px 12px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:var(--ink-3);max-height:88px;overflow:auto;white-space:pre-wrap;word-break:break-word;}
+.progress-actions{margin-top:16px;}
+
+/* ==== PDF result document ==== */
+.doc-stage{margin-top:4px;}
+.doc-stage-head{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+.doc-stage-title{flex:1;min-width:200px;}
+.doc-stage-title h2{font-size:19px;font-weight:600;word-break:break-all;line-height:1.35;}
+.doc-stage-title .hint{margin-top:4px;}
+.doc-stage-head>.bar-actions{margin-left:auto;}
+.doc-stage-body{display:grid;grid-template-columns:228px minmax(0,1fr);gap:16px;align-items:start;}
+.doc-nav{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:7px;position:sticky;top:88px;max-height:calc(100vh - 110px);overflow:auto;}
+.doc-nav button{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:9px 10px;font-size:12px;color:var(--ink-2);line-height:1.45;}
+.doc-nav button:hover{background:#f4f1ea;}
+.doc-nav button.active{background:var(--accent-soft);color:var(--accent-dark);}
+.doc-nav b{display:block;font-weight:600;font-size:12px;word-break:break-all;}
+.doc-nav span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-family:var(--mono);}
+.doc-panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;min-width:0;}
+.doc-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid var(--line);background:#fbfaf7;}
+.doc-actions{margin-left:auto;}
+.seg{display:inline-flex;background:#efece5;border-radius:9px;padding:2px;gap:2px;}
+.seg-btn{border:0;background:transparent;border-radius:7px;padding:6px 11px;font-size:11.5px;color:var(--ink-3);}
+.seg-btn:hover{color:var(--ink);}
+.seg-btn.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(60,50,35,.12);}
+.doc-status{font-size:10.5px;color:var(--sage);font-family:var(--mono);}
+.doc-view{padding:22px 26px;max-height:calc(100vh - 245px);overflow:auto;}
+.doc-raw,.doc-editor{font-family:var(--mono);font-size:12px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
+.doc-raw{margin:0;background:#fffdf9;min-height:420px;color:var(--ink-2);}
+.doc-editor{display:block;width:100%;border:0;outline:none;resize:vertical;min-height:56vh;background:#fffdf9;color:var(--ink);}
+.doc-edit-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border-top:1px solid var(--line);background:#fbfaf7;}
+.md-body{font-size:13.5px;line-height:1.85;color:var(--ink-2);}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4{margin:1.1em 0 .45em;line-height:1.35;color:var(--ink);font-weight:600;}
+.md-body h1{font-size:21px;padding-bottom:.35em;border-bottom:1px solid var(--line);}
+.md-body h2{font-size:17px;}
+.md-body h3{font-size:14.5px;}
+.md-body h4{font-size:13.5px;color:var(--ink-2);}
+.md-body p{margin:.7em 0;}
+.md-body ul,.md-body ol{margin:.6em 0 .6em 1.4em;padding:0;}
+.md-body li{margin:.25em 0;}
+.md-body code{font-family:var(--mono);font-size:11.5px;background:#f3f0e9;border:1px solid var(--line);border-radius:5px;padding:1px 4px;}
+.md-body pre{background:#fbfaf7;border:1px solid var(--line);border-radius:9px;padding:10px 12px;overflow:auto;margin:.8em 0;}
+.md-body pre code{background:transparent;border:0;padding:0;}
+.md-body blockquote{margin:.8em 0;padding:6px 12px;border-left:3px solid var(--accent-soft-h);color:var(--ink-3);background:#fbfaf7;}
+.md-body a{color:var(--accent-dark);text-decoration:underline;text-underline-offset:2px;}
+.md-body img{display:block;max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px;margin:.9em 0 .3em;background:#fff;}
+.md-body .md-img-cap{display:block;font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:.8em;}
+.md-body hr{border:0;border-top:1px solid var(--line);margin:1.2em 0;}
+@media (max-width:1024px){
+  .doc-stage-body{grid-template-columns:1fr;}
+  .doc-nav{position:static;display:flex;gap:6px;overflow:auto;max-height:none;padding:6px;}
+  .doc-nav button{min-width:190px;max-width:240px;}
+  .doc-view{max-height:none;}
+  .doc-editor{min-height:46vh;}
+}
+@media (max-width:768px){
+  .pdf-progress{padding:24px 16px;}
+  .doc-stage-head{gap:10px;}
+  .doc-stage-head>.bar-actions{margin-left:0;}
+  .doc-toolbar{padding:10px;}
+  .doc-actions{margin-left:0;}
+  .doc-view{padding:16px;}
+  .doc-editor{padding:14px;}
+}
 .user-chip{border:0;background:transparent;width:100%;text-align:left;border-radius:var(--radius-sm);cursor:pointer;transition:background .16s ease;}
 .user-chip:hover{background:#f1eee7;}
 .ref-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:2px 0 10px;}

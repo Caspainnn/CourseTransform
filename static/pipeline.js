@@ -50,7 +50,20 @@
   };
 
   /* ================= PDF → MD ================= */
+  const PDF_STEPS = ["检测文字层", "OCR 识别", "切分章节", "导出原图", "生成 Markdown"];
   const pdfFileInput = $("#pdfFile");
+
+  state.pdfDocs = {};
+  state.pdfJob = null;
+  state.pdfChapter = 1;
+  state.pdfMode = "render";
+  state.pdfText = "";
+  state.pdfEditing = false;
+  state.pdfDirty = false;
+  state.pdfClock = null;
+  state.pdfStartedAt = 0;
+  state.pdfHidden = false;
+
   function selectPdf(file){
     if (!file) return;
     if (!/\.pdf$/i.test(file.name)){
@@ -65,6 +78,7 @@
     $("#pdfClear").addEventListener("click", ()=>{ state.pdfFile=null; pdfFileInput.value=""; picked.hidden=true; picked.innerHTML=""; $("#pdfStart").disabled=true; });
     $("#pdfStart").disabled = false;
     $("#pdfState").textContent = "";
+    hidePdfError();
   }
   pdfFileInput.addEventListener("change", ()=>{
     const file = pdfFileInput.files[0];
@@ -102,11 +116,114 @@
     if (file) selectPdf(file);
   });
 
+  /* ---------- parse progress ---------- */
+  function fmtDuration(seconds){
+    const total = Math.max(0, Math.floor(seconds || 0));
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  }
+  function stopPdfClock(){
+    if (state.pdfClock){ clearInterval(state.pdfClock); state.pdfClock = null; }
+  }
+  function startPdfClock(){
+    stopPdfClock();
+    if (!state.pdfStartedAt) state.pdfStartedAt = Date.now();
+    state.pdfClock = setInterval(()=>{
+      const timer = $("#pdfProgressTimer");
+      if (timer) timer.textContent = `总进度 ${state.pdfPct || 0}% · 已用 ${fmtDuration((Date.now() - state.pdfStartedAt) / 1000)}`;
+    }, 1000);
+  }
+  function pdfProgressState(job){
+    const log = (job && job.log) || [];
+    const all = log.join("\n");
+    const elapsed = (Date.now() - (state.pdfStartedAt || Date.now())) / 1000;
+    let step = 0, pct = 6, label = "读取 PDF 页结构…";
+    if (job && job.status === "queued"){ pct = 5; label = "任务排队中…"; }
+    if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = 18; label = "检测到扫描页，启动本机 OCR…"; }
+    const ocr = [...all.matchAll(/本机 OCR 第 (\d+)\/(\d+) 页/g)].pop();
+    if (ocr){
+      const done = Number(ocr[1]), total = Math.max(1, Number(ocr[2]));
+      step = 1;
+      pct = 18 + Math.round(62 * done / total);
+      label = `OCR 识别第 ${done}/${total} 页…`;
+    } else if (job && job.status === "running"){
+      pct = Math.max(pct, Math.min(72, 10 + Math.floor(elapsed * 1.2)));
+      if (!/检测到|切分|已生成|OCR/.test(all)) label = "提取文字层、编号标题与页结构…";
+    }
+    const cut = all.match(/切分出 (\d+) 个章节，导出 (\d+) 张图片/);
+    if (cut){
+      step = 3; pct = Math.max(pct, 86);
+      label = `已切分 ${cut[1]} 章、导出 ${cut[2]} 张原图…`;
+    } else if (/切分出 \d+ 个章节/.test(all)){
+      step = 2; pct = Math.max(pct, 84); label = "正在切分章节…";
+    }
+    const gens = [...all.matchAll(/已生成 [^\n]+\.md/g)];
+    if (gens.length){
+      step = 4; pct = Math.max(pct, 90 + Math.min(8, gens.length * 2));
+      label = `已生成 ${gens.length} 章 Markdown…`;
+    }
+    if (job && job.status === "succeeded"){ step = 5; pct = 100; label = "解析完成，正在打开结果…"; }
+    return { step, pct: Math.min(100, pct), label };
+  }
+  function updatePdfProgress(job){
+    const info = pdfProgressState(job || {});
+    state.pdfPct = info.pct;
+    $("#pdfProgressBar").style.width = info.pct + "%";
+    const track = $("#pdfProgressTrack");
+    if (track) track.setAttribute("aria-valuenow", String(info.pct));
+    $("#pdfProgressText").textContent = info.label;
+    const timer = $("#pdfProgressTimer");
+    if (timer && state.pdfStartedAt) timer.textContent = `总进度 ${info.pct}% · 已用 ${fmtDuration((Date.now() - state.pdfStartedAt) / 1000)}`;
+    document.querySelectorAll("#pdfProgressSteps [data-pdf-step]").forEach(el=>{
+      const index = Number(el.dataset.pdfStep);
+      el.classList.toggle("done", index < info.step);
+      el.classList.toggle("on", index === info.step);
+    });
+    const tail = ((job && job.log) || []).slice(-3);
+    const box = $("#pdfProgressLog");
+    if (box){ box.hidden = !tail.length; box.textContent = tail.join("\n"); }
+    $("#pdfProgressTitle").textContent = job && job.status === "succeeded" ? "解析完成" : "正在解析教材";
+    if (job && job.fileName) $("#pdfProgressFile").textContent = job.fileName;
+  }
+  function showPdfProgress(job){
+    $("#pdfPageHead").hidden = true;
+    $("#pdfWorkspace").hidden = true;
+    $("#pdfDocStage").hidden = true;
+    hidePdfError();
+    $("#pdfProgress").hidden = false;
+    updatePdfProgress(job || {fileName: state.pdfFile && state.pdfFile.name, status: "queued", log: []});
+  }
+  function showPdfWorkspace(){
+    stopPdfClock();
+    $("#pdfProgress").hidden = true;
+    $("#pdfDocStage").hidden = true;
+    $("#pdfPageHead").hidden = false;
+    $("#pdfWorkspace").hidden = false;
+    $("#pdfState").textContent = "";
+    state.pdfHidden = false;
+  }
+  function hidePdfError(){
+    const box = $("#pdfError");
+    if (box) box.hidden = true;
+  }
+  function showPdfError(message){
+    stopPdfClock();
+    $("#pdfProgress").hidden = true;
+    $("#pdfDocStage").hidden = true;
+    $("#pdfPageHead").hidden = false;
+    $("#pdfWorkspace").hidden = false;
+    const box = $("#pdfError");
+    if (box){ box.hidden = false; $("#pdfErrorText").textContent = message || "解析失败"; }
+  }
+
   $("#pdfStart").addEventListener("click", async ()=>{
     if (!state.pdfFile){ toast("先选择教材 PDF"); return; }
     const button = $("#pdfStart");
     button.disabled = true;
-    $("#pdfState").textContent = "上传并解析…";
+    hidePdfError();
+    state.pdfStartedAt = Date.now();
+    state.pdfHidden = false;
+    showPdfProgress({fileName: state.pdfFile.name, status: "queued", log: ["上传 PDF…"]});
+    startPdfClock();
     try {
       const form = new FormData();
       form.append("file", state.pdfFile);
@@ -114,12 +231,19 @@
       const data = await response.json();
       if (!response.ok) throw Error(data.error || "创建任务失败");
       history.replaceState(null, "", `?feature=pdf&pdf=${encodeURIComponent(data.id)}`);
+      $("#pdfProgressFile").textContent = data.fileName || state.pdfFile.name;
       await refreshPdfJobs();
       await pollPdf(data.id);
     } catch (error) {
-      $("#pdfState").textContent = "";
       showPdfError(error.message);
     } finally { button.disabled = false; }
+  });
+
+  $("#pdfProgressBack").addEventListener("click", ()=>{
+    if (!state.activePdf) return;
+    state.pdfHidden = true;
+    showPdfWorkspace();
+    toast("解析在后台继续，完成后会自动打开结果");
   });
 
   $("#pdfRefresh").addEventListener("click", ()=>refreshPdfJobs().catch(showPdfError));
@@ -146,8 +270,18 @@
     const open = event.target.closest("[data-open-pdf]");
     const retry = event.target.closest("[data-retry-pdf]");
     try {
-      if (open){ history.replaceState(null, "", `?feature=pdf&pdf=${encodeURIComponent(open.dataset.openPdf)}`); await pollPdf(open.dataset.openPdf); }
-      if (retry){ await api(`/api/pipeline/pdf/jobs/${retry.dataset.retryPdf}/retry`, "POST", {}); await pollPdf(retry.dataset.retryPdf); await refreshPdfJobs(); }
+      if (open){
+        state.pdfHidden = false;
+        history.replaceState(null, "", `?feature=pdf&pdf=${encodeURIComponent(open.dataset.openPdf)}`);
+        await pollPdf(open.dataset.openPdf);
+      }
+      if (retry){
+        state.pdfStartedAt = Date.now();
+        state.pdfHidden = false;
+        await api(`/api/pipeline/pdf/jobs/${retry.dataset.retryPdf}/retry`, "POST", {});
+        await pollPdf(retry.dataset.retryPdf);
+        await refreshPdfJobs();
+      }
     } catch (error) { showPdfError(error.message); }
   });
 
@@ -156,26 +290,25 @@
     try {
       const job = await api(`/api/pipeline/pdf/jobs/${id}`);
       state.activePdf = job;
-      renderPdfJob(job);
       if (["queued","running"].includes(job.status)){
-        $("#pdfState").textContent = job.status === "queued" ? "排队中…" : "解析中…";
-        state.pdfTimer = setTimeout(()=>pollPdf(id), 900);
+        if (!state.pdfStartedAt) state.pdfStartedAt = Date.parse(job.created) || Date.now();
+        startPdfClock();
+        if (!state.pdfHidden) showPdfProgress(job);
+        state.pdfTimer = setTimeout(()=>pollPdf(id), 1000);
       } else {
-        $("#pdfState").textContent = "";
+        stopPdfClock();
         await refreshPdfJobs();
-        if (job.status === "succeeded") toast(`解析完成：${job.chapters.length} 个章节`);
+        if (job.status === "succeeded"){
+          if (!$("#view-pdf").hidden) await showPdfDoc(job);
+          toast(`解析完成：${job.chapters.length} 个章节`);
+        } else {
+          showPdfError(job.error || "解析失败");
+        }
       }
     } catch (error) { showPdfError(error.message); }
   }
 
-  function showPdfError(message){
-    const box = $("#pdfResult");
-    box.hidden = false;
-    $("#pdfResultTitle").textContent = "解析未完成";
-    $("#pdfResultMeta").textContent = "";
-    $("#pdfChapters").innerHTML = `<div class="notice" style="grid-column:1/-1">${esc(message)}</div>`;
-  }
-
+  /* ---------- result document ---------- */
   function pageRange(pages){
     const nums = [...(pages || [])].sort((a, b) => a - b);
     if(!nums.length) return "";
@@ -189,75 +322,293 @@
     parts.push(start === prev ? String(start) : `${start}–${prev}`);
     return parts.join("、");
   }
-
-  function renderPdfJob(job){
-    const box = $("#pdfResult");
-    box.hidden = false;
-    const sendAll = $("#pdfSendAll");
-    if (sendAll) sendAll.disabled = !(job.chapters && job.chapters.length);
-    $("#pdfResultTitle").textContent = job.fileName || "解析结果";
-    if (job.status === "failed"){
-      showPdfError(job.error || "解析失败");
-      return;
-    }
-    if (["queued","running"].includes(job.status)){
-      $("#pdfResultMeta").textContent = "解析中，完成后逐章显示 Markdown 与原图。";
-      $("#pdfChapters").innerHTML = '<div class="empty-ref" style="grid-column:1/-1">正在解析…</div>';
-      return;
-    }
-    const ocr = job.result?.ocr
-      ? ` · 本机 OCR ${job.result.ocrPages ?? ""} 页${job.result.ocrConfidence ? "（均值 " + job.result.ocrConfidence + "）" : ""}`
+  function pdfChapter(){
+    const job = state.pdfJob;
+    if (!job || !job.chapters) return null;
+    return job.chapters.find(item => item.index === state.pdfChapter) || job.chapters[0] || null;
+  }
+  function pdfMetaText(job){
+    const result = job.result || {};
+    const ocr = result.ocr
+      ? ` · 本机 OCR ${result.ocrPages ?? ""} 页${result.ocrConfidence ? "（均值 " + result.ocrConfidence + "）" : ""}`
       : "";
-    $("#pdfResultMeta").textContent = `${job.result?.pages ?? ""} 页 · ${job.result?.images ?? 0} 张图片 · 共 ${job.chapters.length} 章${ocr} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
-    $("#pdfChapters").innerHTML = job.chapters.map(chapter => `
-      <article class="result-card">
-        <h3>${esc(chapter.title)}</h3>
-        <div class="rc-meta">第 ${pageRange(chapter.pages)} 页 · ${chapter.chars} 字符 · ${chapter.imageCount} 张图</div>
-        <pre data-preview="${chapter.index}" hidden></pre>
-        <div class="bar-actions">
-          <button class="btn btn-sm" data-pdf-preview="${chapter.index}">预览 MD</button>
-          <button class="btn btn-sm" data-pdf-download="${chapter.index}">下载 MD</button>
-          ${chapter.imageCount ? `<button class="btn btn-sm" data-pdf-images="${chapter.index}">下载原图</button>` : ""}
-          <button class="btn btn-sm btn-accent" data-pdf-handoff="${esc(chapter.artifactId)}">送入教案</button>
-        </div>
-      </article>`).join("");
+    const edited = (job.chapters || []).some(item => item.edited) ? " · 含本机修订" : "";
+    return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${ocr}${edited} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
+  }
+  function renderPdfNav(job){
+    const nav = $("#pdfDocNav");
+    if (!nav) return;
+    nav.innerHTML = (job.chapters || []).map(chapter => `
+      <button type="button" data-pdf-chapter="${chapter.index}" class="${chapter.index === state.pdfChapter ? "active" : ""}">
+        <b>${esc(chapter.title)}</b>
+        <span>第 ${pageRange(chapter.pages)} 页 · ${chapter.chars} 字符${Number(chapter.revision || 1) > 1 ? " · 修订 r" + chapter.revision : ""}</span>
+      </button>`).join("");
+  }
+  function imageUrl(jobId, index, src){
+    if (!/^images\//.test(src)) return "";
+    const name = src.slice(7).split("/").pop();
+    if (!name) return "";
+    return `/api/pipeline/pdf/jobs/${encodeURIComponent(jobId)}/images/${index}/${encodeURIComponent(name)}`;
+  }
+  function mdInline(text, ctx){
+    let out = esc(text);
+    out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+    out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, src)=>{
+      const url = imageUrl(ctx.jobId, ctx.index, src);
+      if (!url) return "";
+      return `<img src="${url}" alt="${alt}" loading="lazy">${alt ? `<span class="md-img-cap">${alt}</span>` : ""}`;
+    });
+    out = out.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+    return out;
+  }
+  function joinSoftLines(lines){
+    return lines.reduce((out, line)=>{
+      if (!out) return line;
+      const needSpace = /[A-Za-z0-9]$/.test(out) && /^[A-Za-z0-9]/.test(line);
+      return out + (needSpace ? " " : "") + line;
+    }, "");
+  }
+  function renderMarkdown(text, ctx){
+    const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+    const html = [];
+    let para = [], list = null, listType = "";
+    const flushPara = ()=>{
+      if (!para.length) return;
+      html.push(`<p>${mdInline(joinSoftLines(para), ctx)}</p>`);
+      para = [];
+    };
+    const flushList = ()=>{
+      if (!list){ return; }
+      html.push(`<${listType}>${list.map(item => `<li>${mdInline(item, ctx)}</li>`).join("")}</${listType}>`);
+      list = null; listType = "";
+    };
+    for (let i = 0; i < lines.length; i++){
+      const line = lines[i];
+      const fence = line.match(/^```(.*)$/);
+      if (fence){
+        flushPara(); flushList();
+        const code = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
+        html.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
+        continue;
+      }
+      if (!line.trim()){ flushPara(); flushList(); continue; }
+      const heading = line.match(/^(#{1,6})\s+(.*)$/);
+      if (heading){
+        flushPara(); flushList();
+        const level = Math.min(4, heading[1].length);
+        html.push(`<h${level}>${mdInline(heading[2], ctx)}</h${level}>`);
+        continue;
+      }
+      if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)){
+        flushPara(); flushList(); html.push("<hr>"); continue;
+      }
+      if (/^>\s?/.test(line)){
+        flushPara(); flushList();
+        const quote = [];
+        while (i < lines.length && /^>\s?/.test(lines[i])) quote.push(lines[i++].replace(/^>\s?/, ""));
+        i--;
+        html.push(`<blockquote>${mdInline(joinSoftLines(quote), ctx)}</blockquote>`);
+        continue;
+      }
+      const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
+      const numbered = line.match(/^\s*\d+[.、)）]\s*(.*)$/);
+      if (bullet || numbered){
+        flushPara();
+        const type = bullet ? "ul" : "ol";
+        if (!list || listType !== type){ flushList(); list = []; listType = type; }
+        list.push((bullet || numbered)[1]);
+        continue;
+      }
+      if (list) flushList();
+      para.push(line);
+    }
+    flushPara(); flushList();
+    return html.join("") || '<p class="hint">本章暂无内容</p>';
+  }
+  function setPdfMode(mode, silent){
+    state.pdfMode = mode;
+    document.querySelectorAll("[data-pdf-view]").forEach(btn=>{
+      const active = btn.dataset.pdfView === mode;
+      btn.classList.toggle("on", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    if (state.pdfEditing) return;
+    const render = $("#pdfDocRender"), raw = $("#pdfDocText");
+    render.hidden = mode !== "render";
+    raw.hidden = mode !== "text";
+    if (mode === "render"){
+      const chapter = pdfChapter();
+      render.innerHTML = renderMarkdown(state.pdfText, {jobId: state.pdfJob.id, index: chapter ? chapter.index : state.pdfChapter});
+    } else {
+      raw.textContent = state.pdfText;
+    }
+    if (!silent && mode === "text") raw.scrollTop = 0;
+  }
+  async function selectPdfChapter(index, force){
+    if (state.pdfDirty && !force && !confirm("当前章节有未保存的修改，确定放弃？")) return;
+    const chapter = (state.pdfJob.chapters || []).find(item => item.index === index);
+    if (!chapter) return;
+    state.pdfChapter = index;
+    state.pdfEditing = false;
+    state.pdfDirty = false;
+    $("#pdfDocEditor").hidden = true;
+    $("#pdfDocEditActions").hidden = true;
+    $("#pdfDocEdit").disabled = false;
+    $("#pdfDocEdit").textContent = "编辑";
+    $("#pdfDocImages").hidden = !chapter.imageCount;
+    $("#pdfDocImages").textContent = `下载原图 (${chapter.imageCount})`;
+    $("#pdfDocDownload").disabled = false;
+    document.querySelectorAll("[data-pdf-chapter]").forEach(btn=>btn.classList.toggle("active", Number(btn.dataset.pdfChapter) === index));
+    const key = `${state.pdfJob.id}:${index}:${chapter.revision || 1}`;
+    if (state.pdfDocs[key] == null){
+      const response = await fetch(`/api/pipeline/pdf/jobs/${state.pdfJob.id}/preview/${index}`, {cache:"no-store"});
+      if (!response.ok) throw Error("读取章节内容失败");
+      state.pdfDocs[key] = await response.text();
+    }
+    state.pdfText = state.pdfDocs[key];
+    $("#pdfDocEditor").value = state.pdfText;
+    const digits = state.pdfText.length;
+    $("#pdfDocStatus").textContent = `${chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${digits} 字符`;
+    setPdfMode(state.pdfMode, true);
+  }
+  async function showPdfDoc(job){
+    state.pdfHidden = false;
+    state.pdfStartedAt = 0;
+    stopPdfClock();
+    const same = state.pdfJob && state.pdfJob.id === job.id;
+    state.pdfJob = job;
+    if (!same){
+      state.pdfDocs = {};
+      state.pdfChapter = 1;
+      state.pdfMode = "render";
+      state.pdfEditing = false;
+      state.pdfDirty = false;
+    }
+    $("#pdfPageHead").hidden = true;
+    $("#pdfWorkspace").hidden = true;
+    $("#pdfProgress").hidden = true;
+    $("#pdfDocStage").hidden = false;
+    hidePdfError();
+    $("#pdfDocTitle").textContent = job.fileName || "解析结果";
+    $("#pdfDocMeta").textContent = pdfMetaText(job);
+    $("#pdfSendAll").disabled = !(job.chapters && job.chapters.length);
+    if (!job.chapters || !job.chapters.length){
+      $("#pdfDocNav").innerHTML = '<div class="empty-ref">没有章节</div>';
+      $("#pdfDocRender").innerHTML = '<div class="notice">没有可显示的章节内容。</div>';
+      $("#pdfDocText").textContent = "";
+      return;
+    }
+    if (!job.chapters.some(item => item.index === state.pdfChapter)) state.pdfChapter = job.chapters[0].index;
+    renderPdfNav(job);
+    await selectPdfChapter(state.pdfChapter, true);
   }
 
-  $("#pdfChapters").addEventListener("click", async (event)=>{
-    const preview = event.target.closest("[data-pdf-preview]");
-    const handoff = event.target.closest("[data-pdf-handoff]");
-    const download = event.target.closest("[data-pdf-download]");
-    const images = event.target.closest("[data-pdf-images]");
-    try {
-      if (download && state.activePdf){
-        window.location.href = `/api/pipeline/pdf/jobs/${state.activePdf.id}/download/${download.dataset.pdfDownload}`;
-      }
-      if (images && state.activePdf){
-        window.location.href = `/api/pipeline/pdf/jobs/${state.activePdf.id}/images/${images.dataset.pdfImages}.zip`;
-      }
-      if (preview && state.activePdf){
-        const index = preview.dataset.pdfPreview;
-        const pre = $(`[data-preview="${index}"]`, $("#pdfChapters"));
-        const response = await fetch(`/api/pipeline/pdf/jobs/${state.activePdf.id}/preview/${index}`);
-        const text = await response.text();
-        pre.hidden = !pre.hidden;
-        pre.textContent = text.slice(0, 6000);
-      }
-      if (handoff){
-        const artifactId = handoff.dataset.pdfHandoff;
-        state.selectedArtifacts = new Set([artifactId]);
-        if (window.Workbench) window.Workbench.showFeature("word");
-        toast("已带入 1 章教材，继续选模板与简报");
-      }
-    } catch (error) { toast(error.message); }
+  $("#pdfDocNav").addEventListener("click", async (event)=>{
+    const button = event.target.closest("[data-pdf-chapter]");
+    if (!button) return;
+    try { await selectPdfChapter(Number(button.dataset.pdfChapter)); }
+    catch (error) { toast(error.message); }
   });
-
+  $("#pdfDocBack").addEventListener("click", ()=>{
+    if (state.pdfDirty && !confirm("当前章节有未保存的修改，确定返回？")) return;
+    state.pdfDirty = false;
+    showPdfWorkspace();
+    refreshPdfJobs().catch(()=>{});
+    history.replaceState(null, "", "?feature=pdf");
+  });
+  document.querySelectorAll("[data-pdf-view]").forEach(btn=>{
+    btn.addEventListener("click", ()=>setPdfMode(btn.dataset.pdfView));
+  });
+  $("#pdfDocEdit").addEventListener("click", ()=>{
+    if (!state.pdfText) return;
+    state.pdfEditing = true;
+    state.pdfDirty = false;
+    const editor = $("#pdfDocEditor");
+    editor.value = state.pdfText;
+    editor.hidden = false;
+    $("#pdfDocRender").hidden = true;
+    $("#pdfDocText").hidden = true;
+    $("#pdfDocEditActions").hidden = false;
+    $("#pdfDocEdit").disabled = true;
+    $("#pdfDocStatus").textContent = "编辑中…";
+    $("#pdfDocDirty").textContent = "修改保存在本页；点击“保存修订”生成新版本";
+    document.querySelectorAll("[data-pdf-view]").forEach(btn=>btn.disabled = true);
+    editor.focus();
+  });
+  $("#pdfDocEditor").addEventListener("input", ()=>{
+    state.pdfDirty = true;
+    const size = $("#pdfDocEditor").value.length;
+    $("#pdfDocDirty").textContent = `有未保存的修改 · ${size} 字符 · 保存后生成新修订`;
+  });
+  $("#pdfDocCancel").addEventListener("click", ()=>{
+    if (state.pdfDirty && !confirm("放弃本次修改？")) return;
+    state.pdfEditing = false;
+    state.pdfDirty = false;
+    $("#pdfDocEditor").hidden = true;
+    $("#pdfDocEditActions").hidden = true;
+    $("#pdfDocEdit").disabled = false;
+    document.querySelectorAll("[data-pdf-view]").forEach(btn=>btn.disabled = false);
+    const chapter = pdfChapter();
+    $("#pdfDocStatus").textContent = `${chapter && chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${state.pdfText.length} 字符`;
+    setPdfMode(state.pdfMode, true);
+  });
+  $("#pdfDocSave").addEventListener("click", async ()=>{
+    const text = $("#pdfDocEditor").value;
+    if (!text.trim()){ toast("章节内容不能为空"); return; }
+    const button = $("#pdfDocSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      const job = await api(`/api/pipeline/pdf/jobs/${state.pdfJob.id}/chapters/${state.pdfChapter}`, "POST", {markdown: text});
+      const key = `${job.id}:${state.pdfChapter}:${(job.chapters.find(c => c.index === state.pdfChapter) || {}).revision || 1}`;
+      state.pdfJob = job;
+      state.activePdf = job;
+      state.pdfDocs[key] = text;
+      state.pdfText = text;
+      state.pdfDirty = false;
+      state.pdfEditing = false;
+      $("#pdfDocEditor").hidden = true;
+      $("#pdfDocEditActions").hidden = true;
+      $("#pdfDocEdit").disabled = false;
+      document.querySelectorAll("[data-pdf-view]").forEach(btn=>btn.disabled = false);
+      $("#pdfDocMeta").textContent = pdfMetaText(job);
+      renderPdfNav(job);
+      const chapter = pdfChapter();
+      $("#pdfDocStatus").textContent = `修订 r${chapter.revision} · ${text.length} 字符`;
+      setPdfMode(state.pdfMode, true);
+      toast(`已保存修订 r${chapter.revision}`);
+      refreshPdfJobs().catch(()=>{});
+    } catch (error) {
+      toast(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = "保存修订";
+    }
+  });
+  $("#pdfDocDownload").addEventListener("click", ()=>{
+    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/download/${state.pdfChapter}`;
+  });
+  $("#pdfDocImages").addEventListener("click", ()=>{
+    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/images/${state.pdfChapter}.zip`;
+  });
+  $("#pdfDocHandoff").addEventListener("click", ()=>{
+    const chapter = pdfChapter();
+    if (!chapter){ toast("请选择章节"); return; }
+    state.selectedArtifacts = new Set([chapter.artifactId]);
+    if (window.Workbench) window.Workbench.showFeature("word");
+    toast("已带入 1 章教材，继续选模板与简报");
+  });
   $("#pdfSendAll").addEventListener("click", ()=>{
-    if (!state.activePdf || !state.activePdf.chapters?.length){ toast("还没有可用的章节产物"); return; }
-    state.selectedArtifacts = new Set(state.activePdf.chapters.map(item=>item.artifactId));
+    if (!state.pdfJob || !state.pdfJob.chapters?.length){ toast("还没有可用的章节产物"); return; }
+    state.selectedArtifacts = new Set(state.pdfJob.chapters.map(item=>item.artifactId));
     if (window.Workbench) window.Workbench.showFeature("word");
     toast(`已带入 ${state.selectedArtifacts.size} 章教材`);
   });
+
 
   /* ================= MD → Lesson ================= */
   function isMarkdownTitle(title){ return /\.(md|markdown)$/i.test(String(title || "")); }

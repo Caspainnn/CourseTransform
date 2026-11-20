@@ -125,7 +125,7 @@ data/
 ## 7. 测试与本次实测
 
 ```powershell
-python -m pytest -q          # 85 passed, 1 skipped（2026-11-20）
+python -m pytest -q          # 86 passed, 1 skipped（2026-11-20）
 python scripts/doctor.py
 node --check static/workbench.js
 node --check static/pipeline.js
@@ -135,6 +135,7 @@ python scripts/pipeline_smoke.py --pdf examples/demo_textbook.pdf --template exa
 真实本机实测（2026-11-20，`http://127.0.0.1:7873/`）：
 
 - PDF→MD：`demo_textbook.pdf` 3 页 → 2 章、2 张原图；TOC 不进入正文；产出可下载 MD/图片 ZIP；
+- 解析交互：开始解析后展示 5 步进度（检测文字层/OCR/切章/导出原图/生成 MD）、总进度、OCR 页码与实时日志，可转后台；完成后自动进入独立结果页，支持 Markdown 渲染/纯文本切换与章节编辑；编辑保存为新修订（原版本保留），下载与送入教案均使用最新修订；
 - 扫描版 PDF→MD：`第6章.pdf` 13 页（无文字层）→ 本机 RapidOCR 13 页，均值置信度 0.966，114 秒 → 1 章 16,139 字符；原失败任务直接重试成功，页面显示 OCR 页数与置信度；
 - 教案：真实接口 `deepseek-v4-flash`，2 章自动拆 4 个学时；2 份 `ok_with_warnings`、2 份 `quality_failed`（质检原因：引用不足，未隐藏），成功学时 DOCX 真实可打开；
 - 交接：选择质检通过的“第一章”学时 → 知识库得到 1 份教案 DOCX + 2 份教材 MD（各带原图），PPT 页自动预选 3 份资料并预填课题；
@@ -163,7 +164,7 @@ jiaoan/                 教案引擎（来自“模板-->教案”提交包，�
 pptnative/ webapp/      PPT 原生制作、版本、锁（来自 stage3）
 static/                 工作台 HTML + 原生 JS（workbench.js 基线，pipeline.js 新页面）
 examples/               合成演示教材 PDF、教材 md、模板、图
-tests/                  85 项测试（含 8 项阶段集成测试）
+tests/                  86 项测试（含 9 项阶段集成测试）
 docs/                   原 stage3 文档 + docs/INTEGRATION.md
 scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```
