@@ -3,9 +3,9 @@
 This implements the real stage-1 capability inside the unified workbench:
 PyMuPDF text extraction, chapter splitting (第N章), numbered-section heading
 normalisation (x.y -> ##, x.y.z -> ###), and original image extraction with
-page/caption-aware references. Scanned PDFs are rejected with E_OCR_REQUIRED
-instead of returning empty or invented Markdown; the documented path for
-scanned books is to run MinerU first and feed its draft Markdown to stage 2.
+page/caption-aware references. Scanned pages prefer an installed MinerU CLI
+(layout, figures, formulas); without it the built-in RapidOCR path is used.
+Neither path invents text: failures surface as explicit errors.
 """
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from pathlib import Path
 import pymupdf
 
 from documents import Problem
+from pipeline import mineru_adapter as mineru
 
 CHAPTER_RE = re.compile(r'^第\s*([0-9一二三四五六七八九十百千零两]+)\s*章\s*(\S.*)?$')
 SECTION_RE = re.compile(r'^(\d{1,2}(?:\.\d{1,2})+)\s+\S')
@@ -28,6 +29,7 @@ TOC_RE = re.compile(r'\.{3,}|[…⋯]{2,}|\s{3,}\d{1,4}\s*$')
 MIN_TEXT_CHARS = 20
 MIN_IMAGE_SIDE = 32
 OCR_MAX_PAGES = 200
+MARKDOWN_CHAPTER_RE = re.compile(r'^#{1,3}\s+(第\s*[0-9一二三四五六七八九十百千零两]+\s*章\s*[^\n]*)$')
 
 
 def ocr_enabled():
@@ -240,6 +242,59 @@ def render_chapter(chapter, images, image_dir_name='images'):
     return f"# {chapter['title']}\n\n{body}\n"
 
 
+def split_markdown_chapters(text, default_title='教材'):
+    """Split MinerU Markdown on 第N章 headings, dropping front matter."""
+    lines = str(text or '').replace('\r\n', '\n').split('\n')
+    hits = []
+    for index, line in enumerate(lines):
+        match = MARKDOWN_CHAPTER_RE.match(line.strip())
+        if match:
+            hits.append((index, match.group(1).strip()))
+    if not hits:
+        title = str(default_title or '').strip() or '教材'
+        body = '\n'.join(lines).strip()
+        if not body.startswith('#'):
+            body = f'# {title}\n\n{body}'
+        return [{'title': title, 'markdown': body + '\n'}]
+    chapters = []
+    for position, (line_index, title) in enumerate(hits):
+        end = hits[position + 1][0] if position + 1 < len(hits) else len(lines)
+        body = '\n'.join(lines[line_index:end]).strip()
+        body = re.sub(r'^#{1,3}\s+', '# ', body, count=1)
+        chapters.append({'title': title, 'markdown': body + '\n'})
+    return chapters
+
+
+def _write_mineru_chapters(chapters, image_paths, out_dir, log):
+    results = []
+    used_titles = set()
+    for index, chapter in enumerate(chapters, start=1):
+        markdown = chapter['markdown']
+        base = _safe_name(chapter['title'])
+        name = base
+        suffix = 2
+        while name in used_titles:
+            name = f'{base}_{suffix}'
+            suffix += 1
+        used_titles.add(name)
+        md_path = Path(out_dir) / f'{name}.md'
+        md_path.write_text(markdown, encoding='utf-8', newline='\n')
+        referenced = {Path(ref).name for ref in re.findall(r'!\[[^\]]*\]\(images/([^)\s]+)\)', markdown)}
+        images = [str(path) for path in image_paths if Path(path).name in referenced]
+        results.append({
+            'index': index,
+            'title': chapter['title'],
+            'md': str(md_path),
+            'mdName': md_path.name,
+            'chars': len(markdown),
+            'pages': [],
+            'images': images,
+            'imageCount': len(images),
+        })
+        _log(log, f'已生成 {md_path.name}（{len(images)} 张图 · MinerU）')
+    return results
+
+
 def extract_pdf(pdf_path, out_dir, log=None):
     pdf_path = Path(pdf_path)
     out_dir = Path(out_dir)
@@ -252,6 +307,42 @@ def extract_pdf(pdf_path, out_dir, log=None):
         texts = page_texts(doc)
         total = sum(len(text.strip()) for text in texts)
         need_ocr = [number for number, text in enumerate(texts, start=1) if len(text.strip()) < MIN_TEXT_CHARS]
+        engine_mode = mineru.engine()
+        scanned = total < MIN_TEXT_CHARS or (need_ocr and len(need_ocr) >= max(1, doc.page_count // 2))
+        if need_ocr and scanned and engine_mode in ('auto', 'mineru'):
+            if not mineru.available():
+                if engine_mode == 'mineru':
+                    raise Problem(
+                        '未找到 MinerU 命令行（mineru-kit / mineru / magic-pdf）。'
+                        '请安装 MinerU，或配置 MINERU_COMMAND，或改用 PDF_OCR_ENGINE=rapidocr。',
+                        code='E_MINERU_UNAVAILABLE',
+                    )
+            else:
+                try:
+                    parsed = mineru.parse(pdf_path, out_dir, log)
+                except mineru.MineruError as error:
+                    if engine_mode == 'mineru':
+                        raise Problem(f'MinerU 解析失败：{error}', code='E_MINERU_FAILED') from error
+                    _log(log, f'MinerU 解析失败，回退本机 OCR：{error}')
+                else:
+                    mineru_chapters = split_markdown_chapters(parsed['markdown'], pdf_path.stem)
+                    mineru_results = _write_mineru_chapters(mineru_chapters, parsed['images'], out_dir, log)
+                    if not mineru_results:
+                        raise Problem('MinerU 没有生成章节内容', code='E_MINERU_FAILED')
+                    return {
+                        'pdf': str(pdf_path),
+                        'pdfName': pdf_path.name,
+                        'pages': doc.page_count,
+                        'images': len(parsed['images']),
+                        'ocr': True,
+                        'ocrPages': doc.page_count,
+                        'ocrConfidence': None,
+                        'ocrDpi': None,
+                        'engine': 'mineru',
+                        'mineruTier': parsed['tier'],
+                        'mineruSeconds': parsed['elapsed'],
+                        'chapters': mineru_results,
+                    }
         ocr_stats = None
         if need_ocr and ocr_enabled():
             if len(need_ocr) > OCR_MAX_PAGES:
@@ -323,6 +414,7 @@ def extract_pdf(pdf_path, out_dir, log=None):
         'ocrPages': ocr_stats['pages'] if ocr_stats else 0,
         'ocrConfidence': ocr_stats['confidence'] if ocr_stats else None,
         'ocrDpi': ocr_stats['dpi'] if ocr_stats else None,
+        'engine': 'rapidocr' if ocr_stats else 'pymupdf',
         'chapters': results,
     }
 

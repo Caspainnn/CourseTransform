@@ -16,7 +16,7 @@
 
 - 基线：`feat/stage3-lesson2pptx` 全量保留（工作台外壳、PPT 内核、版本/预览/确认/锁），不做重写。
 - 新增：
-  - `pipeline/pdf2md.py`：真实 PDF 文本层解析（PyMuPDF）+ 切章 + 标题规范化 + 图片导出；无文字层的扫描页走本机 RapidOCR，逐页识别后进入同一套切章流程。OCR 不可用/失败/超过 200 页时明确报错（`E_OCR_UNAVAILABLE`/`E_OCR_FAILED`/`E_OCR_TOO_LARGE`），绝不伪造文字，可回退 MinerU 草稿。
+  - `pipeline/pdf2md.py`：真实 PDF 文本层解析（PyMuPDF）+ 切章 + 标题规范化 + 图片导出；扫描页优先调用本机 MinerU（`mineru_adapter.py`，按 `# 第N章` 拆分 Markdown 并归一化插图），未安装或失败时回退 RapidOCR。OCR 不可用/失败/超过 200 页时明确报错（`E_OCR_UNAVAILABLE`/`E_OCR_FAILED`/`E_OCR_TOO_LARGE`），绝不伪造文字，可回退 MinerU 草稿。
   - `jiaoan/`：教案内核原样接入，23 项单测随仓库。
   - `pipeline/lesson_jobs.py`：把 jiaoan 的 Web 任务模型适配到统一 Flask 服务；密钥只进内存，任务快照不落盘密钥。
   - `pipeline/artifacts.py` + `pipeline/handoff.py`：阶段产物登记与交接（md/图片/原始 PDF/DOCX 的字节、SHA、来源任务、章节、时间）。
@@ -37,10 +37,11 @@
 - `app.py` 保持 PPT 路由与队列不变，在 `create_app()` 末尾注册 `pipeline/web.py` 蓝图；`documents.py` 仅把原 `parse_document/checked_zip/decode/Problem` 抽为共享模块，函数与错误码未改。
 - `pipeline/pdf2md.py`：PyMuPDF 文字层提取、目录行剔除、章内页首截断、x.y/x.y.z 标题层级、图片导出与题注插入；扫描页 RapidOCR 识别（跳过错位页面图片），重复页眉不拆章。
 - `pipeline/lesson_jobs.py`：复用 `jiaoan.web._run_job`，保留 jiaoan 的模型配置、拆学时、质检与报告；任务快照写入 `job.json`（排除 Key），重启恢复为 `interrupted`，重试复制输入后新建任务。
+- `pipeline/mineru_adapter.py`：检测 `mineru-kit` / `mineru` / `magic-pdf` 或 `MINERU_COMMAND`，执行解析、挑选 Markdown、复制并重写图片引用；`PDF_OCR_ENGINE=auto|mineru|rapidocr` 控制严格/回退模式，严格模式返回 `E_MINERU_UNAVAILABLE` / `E_MINERU_FAILED`。
 - 交互：解析中展示 5 步进度、总进度与 OCR 页码，可转后台继续；结果页支持 Markdown 渲染/纯文本切换。`POST /api/pipeline/pdf/jobs/<id>/chapters/<index>` 把编辑保存为新的 pdf2md artifact 修订（原 artifact 不变），`GET .../images/<index>/<name>` 提供渲染所需原图；预览、下载与送入教案自动使用最新修订。
 - `pipeline/artifacts.py` + `pipeline/web.py`：PDF 章节/教案学时登记不可变 artifact；交接把学时 DOCX 与教材 MD+原图写入知识库，保留 `origin` 与 SHA；质检未通过学时禁止交接（409）。
 - `static/index.html` + `static/pipeline.js`：新增 `#view-pdf`、`#view-word`，沿用 stage3 设计令牌；`workbench.js` 仅增加视图隐藏、`showPptWithRefs` 与深链接入口，不改变 PPT 三步流程。
 - 教案页按反馈调整：模型 API 不再展示，固定使用服务端 `.env`；基础信息前置；教材/模板改为“参考资料”卡（知识库选择 + 本地上传 + 图注），知识库教材以 Markdown 复用，交接时保留原知识条目。左侧“本机用户”先打开账户浮层，三个入口再分别打开用户信息、知识库、模型管理详情弹窗（模型编辑为占位）。
-- 测试：`86 passed, 1 skipped`（含 9 项新增阶段集成测试；stage3 原 54 项与 jiaoan 23 项全部保留）。
+- 测试：`89 passed, 1 skipped`（含 12 项新增阶段集成测试；stage3 原 54 项与 jiaoan 23 项全部保留）。
 - 真实运行：PDF 3 页 → 2 章；真实模型教案 4 学时（2 通过、2 质检失败且不隐藏）；交接 3 份资料；PPT 8 页 v001 真实生成、8 张 PNG、确认下载 102,660 字节。
 - 已知限制与用户验收边界见 README 第 8 节。

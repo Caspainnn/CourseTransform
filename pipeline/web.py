@@ -161,7 +161,8 @@ class PipelineService:
         ]
         public['log'] = (job.get('log') or [])[-200:]
         public['result'] = {key: (job.get('result') or {}).get(key) for key in
-                            ('pages', 'images', 'ocr', 'ocrPages', 'ocrConfidence', 'ocrDpi')}
+                            ('pages', 'images', 'ocr', 'ocrPages', 'ocrConfidence', 'ocrDpi',
+                             'engine', 'mineruTier', 'mineruSeconds')}
         return public
 
     def save_pdf_chapter(self, ident, index, markdown):

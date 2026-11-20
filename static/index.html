@@ -1189,7 +1189,7 @@ input[type="range"]::-moz-range-thumb{
           <div>
             <div class="eyebrow">Workflow 01 / Textbook</div>
             <h1>教材 PDF，<em>转成可编辑 MD</em></h1>
-            <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版自动走本机 OCR；识别失败会明确报错，不伪造文字。</p>
+            <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版优先 MinerU（本机已安装时），否则走本机 OCR；失败会明确报错，不伪造文字。</p>
           </div>
         </div>
 
@@ -1199,7 +1199,7 @@ input[type="range"]::-moz-range-thumb{
           <p id="pdfProgressText">准备上传 PDF…</p>
           <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="pdfProgressTrack"><i id="pdfProgressBar"></i></div>
           <div class="gen-steps" id="pdfProgressSteps">
-            <span data-pdf-step="0">检测文字层</span><span data-pdf-step="1">OCR 识别</span><span data-pdf-step="2">切分章节</span><span data-pdf-step="3">导出原图</span><span data-pdf-step="4">生成 Markdown</span>
+            <span data-pdf-step="0">检测文字层</span><span data-pdf-step="1">版面 / OCR</span><span data-pdf-step="2">切分章节</span><span data-pdf-step="3">导出原图</span><span data-pdf-step="4">生成 Markdown</span>
           </div>
           <div class="progress-foot"><span id="pdfProgressFile"></span><span id="pdfProgressTimer">00:00</span></div>
           <div class="progress-log" id="pdfProgressLog" hidden></div>
@@ -1214,7 +1214,7 @@ input[type="range"]::-moz-range-thumb{
             <label class="drop" id="pdfDrop">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
               <div class="drop-label">拖入 PDF，或<b>点击选择</b></div>
-              <div class="drop-hint">支持文字版与扫描版 PDF · ≤ 30MB · 扫描版自动本机 OCR</div>
+              <div class="drop-hint">支持文字版与扫描版 PDF · ≤ 30MB · 扫描版优先 MinerU / 本机 OCR</div>
               <input type="file" id="pdfFile" accept=".pdf" aria-label="上传教材 PDF">
             </label>
             <div id="pdfPicked" class="picked-file" hidden></div>
@@ -1222,7 +1222,7 @@ input[type="range"]::-moz-range-thumb{
               <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>按「第 N 章」切分章节，忽略目录行</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>x.y / x.y.z 编号标题转为 Markdown 层级</li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>原图按页导出，题注下方插入引用</li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>扫描页自动本机 OCR（RapidOCR）</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>扫描版优先 MinerU，缺省用 RapidOCR</li>
             </ul>
             <div class="bar-actions" style="margin-top:16px">
               <button class="btn btn-accent" id="pdfStart" disabled>开始解析</button>

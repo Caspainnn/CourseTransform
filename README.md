@@ -14,7 +14,7 @@
 
 | 阶段 | 来源分支 | 本分支处理 |
 | --- | --- | --- |
-| PDF → MD | `feat/stage1-pdf2md/reference` | stage1 参考实现依赖 MinerU 草稿；本分支用 PyMuPDF 实现文字层提取、切章、标题层级、原图导出，并用本机 RapidOCR 识别扫描页（失败时明确报错，可回退 MinerU 草稿）。 |
+| PDF → MD | `feat/stage1-pdf2md/reference` | stage1 参考实现依赖 MinerU 草稿；本分支用 PyMuPDF 实现文字层提取、切章、标题层级、原图导出，扫描版优先调用本机 MinerU（版面/图片/公式），未安装时用 RapidOCR 兜底（失败明确报错）。 |
 | MD → 教案 | `模板-->教案`（jiaoan-agent v0.2.0 提交包） | 教案引擎 `jiaoan/` 原样接入（23 项单测随仓库），新增 Flask 任务适配、持久化、交接与统一页面；不改模板渲染、拆学时、图筛与质检内核。 |
 | 教案 → PPT | `feat/stage3-lesson2pptx` | 全量保留 `app.py` / `pptnative/` / `static/` 的基线实现，仅新增两个入口页面与“预选阶段产物”入口；未替换制作引擎，未改原生流程。 |
 
@@ -26,7 +26,7 @@
 - 桌面 **PowerPoint**（PPT 制作与逐页 PNG 使用 COM）；旧 `.doc` 另需桌面 Word；
 - 外部 **原版 PPT Master**（不随仓库分发）与 `PPTNATIVE_RUNTIME_HOST` 运行时；
 - 教案/大纲真实生成需要一个 OpenAI 兼容模型接口；离线演示模式不需要 Key；
-- 扫描版 PDF 由本机 RapidOCR 识别（`PDF_OCR=1`，默认开启；`PDF_OCR=0` 可关闭）；识别失败会明确报错，不伪造结果。
+- 扫描版 PDF 优先使用本机 **MinerU**（已安装时，保留版面、插图和公式），否则使用 RapidOCR；失败会明确报错，不伪造结果。
 
 ## 3. 安装
 
@@ -34,7 +34,7 @@
 python -m pip install -r requirements.lock.txt
 Copy-Item .env.example .env                 # 填写服务端配置，不要提交
 Copy-Item local-config.example.json local-config.json
-python scripts/doctor.py
+python scripts/doctor.py            # mineru_cli 为可选检查
 ```
 
 `local-config.json`（不提交）示例：
@@ -56,7 +56,39 @@ LLM_BASE_URL= / LLM_API_KEY= / LLM_MODEL= / LLM_OUTLINE_JSON_MODEL=   # PPT 阶�
 JIAOAN_BASE_URL= / JIAOAN_API_KEY= / JIAOAN_MODEL=                    # 教案阶段
 JIAOAN_TIMEOUT=900 / JIAOAN_MAX_TOKENS=8192 / JIAOAN_MAX_CONTEXT=24000
 JIAOAN_DISABLE_THINKING=true
+
+PDF_OCR=1 / PDF_OCR_DPI=200                                          # 本机 OCR 兜底
+PDF_OCR_ENGINE=auto / MINERU_TIER=standard / MINERU_TIMEOUT=1800      # auto|mineru|rapidocr
+MINERU_COMMAND=                                                       # 可选，完整命令行路径
 ```
+
+### 可选：启用 MinerU（扫描版版面与插图）
+
+MinerU 不随仓库分发。建议装在独立虚拟环境，避免与 RapidOCR 的 numpy/opencv 版本冲突：
+
+```powershell
+python -m venv .mineru
+.\.mineru\Scripts\python -m pip install -U "mineru>=4.0,<5"
+# 首次解析会自动下载模型（约 1–2GB），之后离线可用
+```
+
+安装后在 `.env` 指向该环境的命令（或把 `.mineru\Scripts` 加入 PATH）：
+
+```text
+MINERU_COMMAND=E://YourProject//.mineru//Scripts//mineru-kit.exe
+```
+
+若 `onnxruntime` 初始化失败（Windows 常见 DLL 报错），可改用 Torch 后端：
+
+```powershell
+.\.mineru\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+.\.mineru\Scripts\python -m pip install transformers accelerate safetensors
+.\.mineru\Scripts\mineru-kit.exe models download --tier basic --small-backend torch
+```
+
+并在 `%USERPROFILE%\.mineru\config.yaml` 写入 `model.small_backend: torch`（本机验证走该路径，1 页扫描件约 30 秒）。
+
+服务重启后 `python scripts/doctor.py` 的 `mineru_cli` 应为 `true`。MinerU 可用时扫描件自动优先走 MinerU，失败会回退 RapidOCR（`PDF_OCR_ENGINE=mineru` 则严格报错）。
 
 密钥只在服务端读取；`.env`、`local-config.json`、`data/`、上传教材、模型日志与生成产物均被 `.gitignore` 排除。
 
@@ -125,8 +157,8 @@ data/
 ## 7. 测试与本次实测
 
 ```powershell
-python -m pytest -q          # 86 passed, 1 skipped（2026-11-20）
-python scripts/doctor.py
+python -m pytest -q          # 89 passed, 1 skipped（2026-11-20）
+python scripts/doctor.py            # mineru_cli 为可选检查
 node --check static/workbench.js
 node --check static/pipeline.js
 python scripts/pipeline_smoke.py --pdf examples/demo_textbook.pdf --template examples/templates/教案模板_表格式.docx
@@ -146,7 +178,7 @@ python scripts/pipeline_smoke.py --pdf examples/demo_textbook.pdf --template exa
 
 ## 8. 已知限制
 
-- **扫描版 PDF 使用本机 OCR**：RapidOCR 对扫描页逐页识别，13 页约 2 分钟；版面、表格、公式的精度有限，侧栏标签与图内文字可能与正文混排，重要内容需对照原图核对。需要更好版面时可用 MinerU 生成草稿后上传。`PDF_OCR=0` 可关闭本机 OCR。
+- **扫描版 PDF**：安装 MinerU 时优先使用（可保留版面、插图和公式，1–2GB 模型需单独安装）；未安装时用 RapidOCR 兜底，13 页约 2 分钟，但不拆分图内插图，版面/表格/公式精度有限，重要内容需对照原图核对。`PDF_OCR=0` 可关闭兜底 OCR。
 - **stage1 视觉回写未接入界面**：stage1 参考实现的“逐图视觉识别并回写代码/公式/表格”需要额外的视觉模型服务；本次 PDF 阶段只提取文字与原始图片（保留引用），不自动转写图片内容。需要时可按 stage1 的 `code/vision_output_constraint/` 文档另行配置。
 - **PPT 依赖不可分发的原版 PPT Master / host 运行时**：必须按第 2、3 节配置，否则 `/api/health` 的 `nativeRuntime` 为 false，制作会失败。
 - **仅 Windows + 桌面 Office**：PowerPoint COM 不可用时无法制作/预览 PNG；不做跨平台承诺。
@@ -164,7 +196,7 @@ jiaoan/                 教案引擎（来自“模板-->教案”提交包，�
 pptnative/ webapp/      PPT 原生制作、版本、锁（来自 stage3）
 static/                 工作台 HTML + 原生 JS（workbench.js 基线，pipeline.js 新页面）
 examples/               合成演示教材 PDF、教材 md、模板、图
-tests/                  86 项测试（含 9 项阶段集成测试）
+tests/                  89 项测试（含 12 项阶段集成测试）
 docs/                   原 stage3 文档 + docs/INTEGRATION.md
 scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```

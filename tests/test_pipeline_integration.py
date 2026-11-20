@@ -6,8 +6,10 @@ real run documented in README.
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
+import sys
 import shutil
 import tempfile
 import time
@@ -148,7 +150,7 @@ class PipelineIntegrationTests(unittest.TestCase):
         target.close()
         source.close()
 
-        with mock.patch.dict(os.environ, {'PDF_OCR': '0'}):
+        with mock.patch.dict(os.environ, {'PDF_OCR': '0', 'PDF_OCR_ENGINE': 'rapidocr', 'MINERU_COMMAND': ''}):
             with open(scanned, 'rb') as handle:
                 response = self.client.post('/api/pipeline/pdf/jobs',
                                             data={'file': (handle, 'scanned.pdf')},
@@ -175,10 +177,11 @@ class PipelineIntegrationTests(unittest.TestCase):
         target.close()
         source.close()
 
-        with open(scanned, 'rb') as handle:
-            response = self.client.post('/api/pipeline/pdf/jobs',
-                                        data={'file': (handle, 'scanned_ocr.pdf')},
-                                        content_type='multipart/form-data')
+        with mock.patch.dict(os.environ, {'PDF_OCR_ENGINE': 'rapidocr', 'MINERU_COMMAND': ''}):
+            with open(scanned, 'rb') as handle:
+                response = self.client.post('/api/pipeline/pdf/jobs',
+                                            data={'file': (handle, 'scanned_ocr.pdf')},
+                                            content_type='multipart/form-data')
         self.assertEqual(response.status_code, 202)
         job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}", timeout=240)
         self.assertEqual(job['status'], 'succeeded', job.get('error'))
@@ -187,6 +190,106 @@ class PipelineIntegrationTests(unittest.TestCase):
         text = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/1").get_data(as_text=True)
         self.assertGreater(len(text), 200)
         self.assertTrue(any(token in text for token in ('人工智能', '智能', '数据')))
+
+    def test_mineru_inline_images_are_extracted(self):
+        from pipeline import mineru_adapter
+        png = ('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+'
+               'ip1sAAAAASUVORK5CYII=')
+        md = f'# 第一章 测试\n\n![图1](data:image/png;base64,{png})\n'
+        md_path = self.tmp / 'mineru.md'
+        md_path.write_text(md, encoding='utf-8')
+        out = self.tmp / 'out'
+        text, images, missing = mineru_adapter._collect_images(md, md_path, out, self.tmp)
+        self.assertFalse(missing)
+        self.assertEqual(len(images), 1)
+        self.assertIn('images/inline-0001.png', text)
+        self.assertNotIn('data:image', text)
+        self.assertTrue((out / 'images' / 'inline-0001.png').is_file())
+
+    def test_mineru_cli_is_preferred_and_keeps_figures(self):
+        png = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='
+        )
+        script = self.tmp / 'fake_mineru.py'
+        script.write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            "import base64\n"
+            "args = sys.argv[1:]\n"
+            "out = Path(args[args.index('-o') + 1])\n"
+            "src = Path(args[args.index('-p') + 1])\n"
+            "folder = out / src.stem / 'auto'\n"
+            "(folder / 'images').mkdir(parents=True, exist_ok=True)\n"
+            "(folder / 'images' / 'fig1.png').write_bytes(base64.b64decode('"
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='
+            "'))\n"
+            "(folder / (src.stem + '.md')).write_text("
+            "'# 第1章 扫描章\\n\\n正文甲。\\n\\n![图1](images/fig1.png)\\n\\n## 1.1 小节\\n\\n内容。\\n\\n"
+            "# 第2章 扫描二章\\n\\n正文乙。\\n', encoding='utf-8')\n",
+            encoding='utf-8',
+        )
+        scanned = self.tmp / 'mineru_scan.pdf'
+        source = pymupdf.open(str(DEMO_PDF))
+        pix = source[0].get_pixmap(dpi=90)
+        target = pymupdf.open()
+        page = target.new_page(width=595, height=842)
+        page.insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=pix)
+        target.save(scanned)
+        target.close()
+        source.close()
+
+        env = {
+            'PDF_OCR_ENGINE': 'mineru',
+            'PDF_OCR': '0',
+            'MINERU_COMMAND': f'"{sys.executable}" "{script}"',
+        }
+        with mock.patch.dict(os.environ, env):
+            with open(scanned, 'rb') as handle:
+                response = self.client.post('/api/pipeline/pdf/jobs',
+                                            data={'file': (handle, 'mineru_scan.pdf')},
+                                            content_type='multipart/form-data')
+            self.assertEqual(response.status_code, 202)
+            job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}", timeout=120)
+        self.assertEqual(job['status'], 'succeeded', job.get('error'))
+        self.assertEqual(job['result']['engine'], 'mineru')
+        self.assertTrue(job['result']['ocr'])
+        self.assertEqual(job['result']['images'], 1)
+        self.assertEqual(len(job['chapters']), 2)
+        self.assertEqual(job['chapters'][0]['imageCount'], 1)
+        self.assertIn('MinerU', '\n'.join(job['log']))
+
+        first = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/1").get_data(as_text=True)
+        second = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/2").get_data(as_text=True)
+        self.assertIn('# 第1章 扫描章', first)
+        self.assertIn('images/fig1.png', first)
+        self.assertIn('# 第2章 扫描二章', second)
+        self.assertNotIn('扫描二章', first)
+
+        record = json.loads((self.tmp / 'artifacts' / job['chapters'][0]['artifactId'] / 'artifact.json').read_text(encoding='utf-8'))
+        self.assertEqual(len(record['files']['images']), 1)
+        image = Path(record['files']['images'][0]).name
+        served = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/images/1/{image}")
+        self.assertEqual(served.status_code, 200)
+
+    def test_strict_mineru_reports_missing_cli(self):
+        scanned = self.tmp / 'strict_scan.pdf'
+        source = pymupdf.open(str(DEMO_PDF))
+        pix = source[0].get_pixmap(dpi=90)
+        target = pymupdf.open()
+        target.new_page(width=595, height=842).insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=pix)
+        target.save(scanned)
+        target.close()
+        source.close()
+        env = {'PDF_OCR_ENGINE': 'mineru', 'MINERU_COMMAND': str(self.tmp / 'missing-mineru')}
+        with mock.patch.dict(os.environ, env):
+            with open(scanned, 'rb') as handle:
+                response = self.client.post('/api/pipeline/pdf/jobs',
+                                            data={'file': (handle, 'strict_scan.pdf')},
+                                            content_type='multipart/form-data')
+            job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}", timeout=60)
+        self.assertEqual(job['status'], 'failed')
+        self.assertEqual(job['code'], 'E_MINERU_UNAVAILABLE')
+        self.assertIn('MinerU', job['error'])
 
     def test_lesson_offline_generation_and_ppt_handoff(self):
         pdf = self._pdf_job()

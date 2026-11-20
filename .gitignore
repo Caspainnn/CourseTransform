@@ -16,3 +16,7 @@ web_jobs/
 output/
 *.pptx
 
+
+# Optional isolated MinerU runtime
+.mineru/
+

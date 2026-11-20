@@ -138,7 +138,9 @@
     const elapsed = (Date.now() - (state.pdfStartedAt || Date.now())) / 1000;
     let step = 0, pct = 6, label = "读取 PDF 页结构…";
     if (job && job.status === "queued"){ pct = 5; label = "任务排队中…"; }
-    if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = 18; label = "检测到扫描页，启动本机 OCR…"; }
+    if (/启动 MinerU/.test(all)){ step = 1; pct = Math.max(pct, 26); label = "MinerU 解析版面、图片与公式…"; }
+    if (/MinerU 完成/.test(all)){ step = 3; pct = Math.max(pct, 90); label = "MinerU 已生成 Markdown，正在整理章节…"; }
+    if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = Math.max(pct, 18); label = "检测到扫描页，启动本机 OCR…"; }
     const ocr = [...all.matchAll(/本机 OCR 第 (\d+)\/(\d+) 页/g)].pop();
     if (ocr){
       const done = Number(ocr[1]), total = Math.max(1, Number(ocr[2]));
@@ -147,7 +149,7 @@
       label = `OCR 识别第 ${done}/${total} 页…`;
     } else if (job && job.status === "running"){
       pct = Math.max(pct, Math.min(72, 10 + Math.floor(elapsed * 1.2)));
-      if (!/检测到|切分|已生成|OCR/.test(all)) label = "提取文字层、编号标题与页结构…";
+      if (!/检测到|切分|已生成|OCR|MinerU/.test(all)) label = "提取文字层、编号标题与页结构…";
     }
     const cut = all.match(/切分出 (\d+) 个章节，导出 (\d+) 张图片/);
     if (cut){
@@ -329,9 +331,9 @@
   }
   function pdfMetaText(job){
     const result = job.result || {};
-    const ocr = result.ocr
-      ? ` · 本机 OCR ${result.ocrPages ?? ""} 页${result.ocrConfidence ? "（均值 " + result.ocrConfidence + "）" : ""}`
-      : "";
+    let ocr = "";
+    if (result.engine === "mineru") ocr = ` · MinerU ${result.mineruTier || "standard"}${result.mineruSeconds ? "（" + Math.round(result.mineruSeconds) + "s）" : ""}`;
+    else if (result.ocr) ocr = ` · 本机 OCR ${result.ocrPages ?? ""} 页${result.ocrConfidence ? "（均值 " + result.ocrConfidence + "）" : ""}`;
     const edited = (job.chapters || []).some(item => item.edited) ? " · 含本机修订" : "";
     return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${ocr}${edited} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
   }
