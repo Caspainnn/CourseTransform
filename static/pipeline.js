@@ -49,12 +49,6 @@
     apiPreset:"server", initialized:{pdf:false, word:false}
   };
 
-  /* ================= stage switching ================= */
-  document.addEventListener("click", (event)=>{
-    const go = event.target.closest("[data-goto]");
-    if (go && window.Workbench) window.Workbench.showFeature(go.dataset.goto);
-  });
-
   /* ================= PDF → MD ================= */
   const pdfFileInput = $("#pdfFile");
   pdfFileInput.addEventListener("change", ()=>{

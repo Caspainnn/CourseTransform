@@ -86,11 +86,6 @@ ul{margin:0;padding:0;list-style:none;}
 .nav-title{display:block;font-size:13px;}
 .nav-desc{display:block;font-size:11px;color:var(--ink-3);margin-top:1px;}
 .nav-item.active .nav-desc{color:var(--accent);}
-.badge-wip{
-  font-size:10px;padding:1px 6px;border-radius:20px;
-  background:var(--sage-soft);color:var(--sage);border:1px solid #dfe7df;
-  letter-spacing:.03em;white-space:nowrap;
-}
 .sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px;}
 .side-note{
   border:1px solid var(--line);border-radius:var(--radius-sm);
@@ -752,12 +747,10 @@ input[type="range"]::-moz-range-thumb{
         <button class="nav-item" data-feature="pdf">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M9 13h6M9 17h4"/></svg>
           <span class="nav-text"><span class="nav-title">教材 PDF 转 MD</span><span class="nav-desc">扫描版 / 文字版识别</span></span>
-          <span class="badge-wip">已接入</span>
         </button>
         <button class="nav-item" data-feature="word">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M8.5 12l1.3 5 1.7-3.4 1.7 3.4 1.3-5"/></svg>
           <span class="nav-text"><span class="nav-title">教材 MD 转教案 Word</span><span class="nav-desc">按课标生成课时教案</span></span>
-          <span class="badge-wip">已接入</span>
         </button>
         <button class="nav-item active" data-feature="ppt" aria-current="page">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/><path d="M7.5 12.5l2.5-3 2 2.5 2-3.5 2.5 4"/></svg>
@@ -1202,13 +1195,6 @@ input[type="range"]::-moz-range-thumb{
             <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版不会伪造文字，会明确提示先用 MinerU 生成草稿。</p>
           </div>
         </div>
-        <div class="flow-bar" aria-label="教材转化流程">
-          <button class="flow-step on" data-goto="pdf"><i>01</i><span>教材 PDF<small>提取 Markdown 与原图</small></span></button>
-          <span class="flow-line"></span>
-          <button class="flow-step" data-goto="word"><i>02</i><span>教案 Word<small>按学时套模板生成</small></span></button>
-          <span class="flow-line"></span>
-          <button class="flow-step" data-goto="ppt"><i>03</i><span>课堂 PPT<small>确认大纲后原生制作</small></span></button>
-        </div>
         <div class="stage-grid">
           <section class="card">
             <div class="card-head">
@@ -1257,13 +1243,6 @@ input[type="range"]::-moz-range-thumb{
             <h1>教材 MD，<em>套模板成教案</em></h1>
             <p>整章教材与单学时模板交给教案引擎：按实验数拆学时，每个学时一份原位套模板 Word，并保留质检与验收结果。</p>
           </div>
-        </div>
-        <div class="flow-bar" aria-label="教材转化流程">
-          <button class="flow-step" data-goto="pdf"><i>01</i><span>教材 PDF<small>提取 Markdown 与原图</small></span></button>
-          <span class="flow-line"></span>
-          <button class="flow-step on" data-goto="word"><i>02</i><span>教案 Word<small>按学时套模板生成</small></span></button>
-          <span class="flow-line"></span>
-          <button class="flow-step" data-goto="ppt"><i>03</i><span>课堂 PPT<small>确认大纲后原生制作</small></span></button>
         </div>
         <div class="stage-grid">
           <div class="stack">
@@ -1466,15 +1445,6 @@ input[type="range"]::-moz-range-thumb{
 <style>[hidden]{display:none!important}.thumb-canvas img{display:block}.slide-render img{display:block}#taskStatus{white-space:pre-wrap}#taskActions{margin-bottom:16px}.preview-toolbar{flex-wrap:wrap}#versionSelect{width:auto;flex:0 1 220px;min-width:120px;max-width:100%}</style><div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
 <style>
 /* ==== Integrated pipeline pages (PDF→MD / MD→教案) ==== */
-.flow-bar{display:flex;align-items:center;gap:10px;margin:0 0 20px;padding:6px 0;overflow-x:auto;}
-.flow-step{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#fff;border-radius:var(--radius-sm);padding:9px 14px;text-align:left;color:var(--ink-3);min-width:150px;box-shadow:var(--shadow);}
-.flow-step i{font-style:normal;font-family:var(--mono);font-size:11px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#f1eee7;color:var(--ink-3);flex:0 0 26px;}
-.flow-step span{font-size:12.5px;font-weight:600;color:var(--ink-2);line-height:1.35;}
-.flow-step small{display:block;font-weight:400;font-size:10.5px;color:var(--ink-3);margin-top:1px;}
-.flow-step.on{border-color:#e2c9bb;background:var(--accent-soft);}
-.flow-step.on i{background:var(--accent);color:#fff;}
-.flow-step.on span{color:var(--accent-dark);}
-.flow-line{height:1px;background:var(--line-strong);flex:1;min-width:14px;}
 .stage-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;}
 .stage-grid .stack{display:flex;flex-direction:column;gap:16px;min-width:0;}
 .status-card{position:sticky;top:88px;}
@@ -1538,9 +1508,6 @@ input[type="range"]::-moz-range-thumb{
 @media(max-width:860px){
   .stage-grid{grid-template-columns:1fr;}
   .status-card{position:static;}
-  .flow-bar{gap:6px;}
-  .flow-step{min-width:0;flex:1;padding:8px 10px;}
-  .flow-step small{display:none;}
   .form-grid{grid-template-columns:1fr;}
 }
 </style>
