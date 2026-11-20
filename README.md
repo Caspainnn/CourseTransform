@@ -109,7 +109,8 @@ MINERU_COMMAND=E://YourProject//.mineru//Scripts//mineru-kit.exe
 
 1. 打开“教材 PDF 转 MD”，上传 `examples/demo_textbook.pdf`（仓库内合成演示教材，含文字层与 2 张图）；
 2. 点击“开始解析”，逐章查看 Markdown 预览、下载 MD 与原图 ZIP；
-3. 扫描版 PDF 会自动用本机 RapidOCR 识别并生成 Markdown；识别失败会明确报错（可改用 MinerU 草稿），不会生成空文件冒充成功。
+3. 结果页可切换 Markdown/纯文本、编辑并保存修订，也可“下载全部 ZIP”（Markdown + 原图 + manifest.json）自行保存；
+4. 扫描版 PDF 优先 MinerU（已安装时，保留版面/插图/公式），否则用本机 RapidOCR；失败会明确报错，不伪造文字。
 
 **② 教材 MD 转教案 Word**
 

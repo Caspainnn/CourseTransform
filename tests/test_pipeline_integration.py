@@ -7,6 +7,7 @@ real run documented in README.
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import sys
@@ -14,6 +15,7 @@ import shutil
 import tempfile
 import time
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -93,6 +95,17 @@ class PipelineIntegrationTests(unittest.TestCase):
         artifacts = self.client.get('/api/pipeline/artifacts?stage=pdf2md').get_json()
         self.assertEqual(len(artifacts), 2)
         self.assertTrue((self.tmp / 'artifacts' / artifacts[0]['id'] / 'artifact.json').is_file())
+
+        bundle = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/bundle")
+        self.assertEqual(bundle.status_code, 200)
+        with zipfile.ZipFile(io.BytesIO(bundle.data)) as archive:
+            names = archive.namelist()
+            self.assertEqual(len([name for name in names if name.startswith('markdown/') and name.endswith('.md')]), 2)
+            self.assertTrue(any(name.startswith('images/') for name in names))
+            self.assertIn('manifest.json', names)
+            manifest = json.loads(archive.read('manifest.json').decode('utf-8'))
+            self.assertEqual(manifest['fileName'], 'demo_textbook.pdf')
+            self.assertEqual(len(manifest['chapters']), 2)
 
         download = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/download/1")
         self.assertEqual(download.status_code, 200)

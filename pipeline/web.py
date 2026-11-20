@@ -419,6 +419,58 @@ def create_blueprint(data_dir):
         job = service.save_pdf_chapter(ident, index, markdown)
         return jsonify(service._pdf_public(job))
 
+    @bp.get('/pdf/jobs/<ident>/bundle')
+    def pdf_bundle(ident):
+        job = service._pdf_job(ident)
+        if not job:
+            raise Problem('任务不存在', 404, 'E_NOT_FOUND')
+        chapters = job.get('chapters') or []
+        if job.get('status') != 'succeeded' or not chapters:
+            raise Problem('任务尚未完成，无法打包下载', 409, 'E_JOB_NOT_READY')
+        buffer = io.BytesIO()
+        manifest = {
+            'id': job.get('id'), 'fileName': job.get('fileName'), 'sha256': job.get('sha256'),
+            'engine': (job.get('result') or {}).get('engine')
+                      or ('rapidocr' if (job.get('result') or {}).get('ocr') else 'pymupdf'),
+            'tier': (job.get('result') or {}).get('mineruTier'),
+            'pages': (job.get('result') or {}).get('pages'),
+            'chapters': [],
+        }
+        seen = set()
+        with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
+            for chapter in chapters:
+                artifact = service.artifacts.get(chapter.get('artifactId') or '')
+                md_path = service.artifacts.file_path(artifact, 'md') if artifact else None
+                if not md_path:
+                    continue
+                md_name = md_path.name
+                if md_name in seen:
+                    md_name = f'{md_path.stem}-{chapter.get("index")}{md_path.suffix}'
+                seen.add(md_name)
+                archive.write(md_path, arcname=f'markdown/{md_name}')
+                folder = service.artifacts.folder(artifact['id'])
+                images = []
+                for path in sorted((folder / 'images').glob('*')):
+                    if not path.is_file():
+                        continue
+                    image_name = path.name
+                    if f'images/{image_name}' not in manifest.setdefault('_images', []):
+                        archive.write(path, arcname=f'images/{image_name}')
+                        manifest['_images'].append(f'images/{image_name}')
+                    images.append(image_name)
+                manifest['chapters'].append({
+                    'index': chapter.get('index'), 'title': chapter.get('title'),
+                    'revision': chapter.get('revision') or 1, 'chars': chapter.get('chars'),
+                    'pages': chapter.get('pages') or [], 'md': f'markdown/{md_name}',
+                    'images': images,
+                })
+            manifest.pop('_images', None)
+            archive.writestr('manifest.json', json.dumps(manifest, ensure_ascii=False, indent=2))
+        buffer.seek(0)
+        stem = Path(job.get('fileName') or 'textbook').stem
+        return send_file(buffer, mimetype='application/zip', as_attachment=True,
+                         download_name=f'{stem}-markdown.zip')
+
     @bp.get('/pdf/jobs/<ident>/images/<int:index>/<path:name>')
     def pdf_image(ident, index, name):
         job = service._pdf_job(ident)

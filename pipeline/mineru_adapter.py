@@ -21,7 +21,6 @@ import shlex
 import shutil
 import subprocess
 import tempfile
-import threading
 import time
 from pathlib import Path
 
@@ -171,14 +170,6 @@ def parse(pdf_path, out_dir, log=None):
         root = Path(temp)
         args = _build_args(cli, pdf_path, root)
         note(f'启动 MinerU（{Path(cli[0]).name} · {tier()}）…')
-        stop = threading.Event()
-
-        def heartbeat():
-            while not stop.wait(15):
-                note(f'MinerU 解析中…（已用 {int(time.time() - started)} 秒）')
-
-        pulse = threading.Thread(target=heartbeat, daemon=True)
-        pulse.start()
         try:
             completed = subprocess.run(
                 args,
@@ -193,8 +184,6 @@ def parse(pdf_path, out_dir, log=None):
             raise MineruError(f'MinerU 超时（>{timeout()} 秒）') from error
         except OSError as error:
             raise MineruError(f'MinerU 无法启动：{error}') from error
-        finally:
-            stop.set()
         if completed.returncode != 0:
             tail = (completed.stderr or completed.stdout or '').strip().splitlines()[-3:]
             raise MineruError(f'MinerU 退出码 {completed.returncode}：' + ' / '.join(tail))

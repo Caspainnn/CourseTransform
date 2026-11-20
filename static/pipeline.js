@@ -371,6 +371,25 @@
       return out + (needSpace ? " " : "") + line;
     }, "");
   }
+  function listMarker(line){
+    const bullet = line.match(/^\s*([-*+])\s+(.*)$/);
+    if (bullet) return {type:"ul", text:bullet[2]};
+    const paren = line.match(/^\s*\d{1,2}[)）、]\s*(.*)$/);
+    if (paren) return {type:"ol", text:paren[1]};
+    const dot = line.match(/^\s*\d{1,2}\.\s+(.*)$/);
+    if (dot) return {type:"ol", text:dot[1]};
+    return null;
+  }
+  function sectionHeading(line){
+    const match = line.match(/^(\d{1,2}(?:\.\d{1,2})+)\s*(\S.*)$/);
+    if (!match) return null;
+    const title = match[2].trim();
+    if (!title || title.length > 42 || /[。；！？，,：:、%]/.test(title)) return null;
+    if (!/^[A-Za-z\u4e00-\u9fa5]/.test(title)) return null;
+    if (/\.{3,}|…/.test(title)) return null;
+    const depth = match[1].split(".").length;
+    return {level:Math.min(4, depth + 1), text:`${match[1]} ${title}`};
+  }
   function renderMarkdown(text, ctx){
     const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
     const html = [];
@@ -396,12 +415,29 @@
         html.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
         continue;
       }
-      if (!line.trim()){ flushPara(); flushList(); continue; }
+      if (!line.trim()){
+        if (list){
+          let next = i + 1;
+          while (next < lines.length && (!lines[next].trim() || /^\s*\d{1,3}\s*$/.test(lines[next]))) next++;
+          const marker = next < lines.length ? listMarker(lines[next]) : null;
+          if (marker && marker.type === listType){ i = next - 1; continue; }
+          flushList();
+        }
+        flushPara();
+        continue;
+      }
+      if (list && /^\s*\d{1,3}\s*$/.test(line)) continue;
       const heading = line.match(/^(#{1,6})\s+(.*)$/);
       if (heading){
         flushPara(); flushList();
         const level = Math.min(4, heading[1].length);
         html.push(`<h${level}>${mdInline(heading[2], ctx)}</h${level}>`);
+        continue;
+      }
+      const section = sectionHeading(line);
+      if (section){
+        flushPara(); flushList();
+        html.push(`<h${section.level}>${mdInline(section.text, ctx)}</h${section.level}>`);
         continue;
       }
       if (/^\s*(-{3,}|\*{3,})\s*$/.test(line)){
@@ -415,13 +451,11 @@
         html.push(`<blockquote>${mdInline(joinSoftLines(quote), ctx)}</blockquote>`);
         continue;
       }
-      const bullet = line.match(/^\s*[-*+]\s+(.*)$/);
-      const numbered = line.match(/^\s*\d+[.、)）]\s*(.*)$/);
-      if (bullet || numbered){
+      const marker = listMarker(line);
+      if (marker){
         flushPara();
-        const type = bullet ? "ul" : "ol";
-        if (!list || listType !== type){ flushList(); list = []; listType = type; }
-        list.push((bullet || numbered)[1]);
+        if (!list || listType !== marker.type){ flushList(); list = []; listType = marker.type; }
+        list.push(marker.text);
         continue;
       }
       if (list) flushList();
@@ -430,6 +464,8 @@
     flushPara(); flushList();
     return html.join("") || '<p class="hint">本章暂无内容</p>';
   }
+  window.PipelineMD = {render: renderMarkdown};
+
   function setPdfMode(mode, silent){
     state.pdfMode = mode;
     document.querySelectorAll("[data-pdf-view]").forEach(btn=>{
@@ -594,6 +630,9 @@
       button.disabled = false;
       button.textContent = "保存修订";
     }
+  });
+  $("#pdfBundle").addEventListener("click", ()=>{
+    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/bundle`;
   });
   $("#pdfDocDownload").addEventListener("click", ()=>{
     if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/download/${state.pdfChapter}`;
