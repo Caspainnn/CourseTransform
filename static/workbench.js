@@ -838,6 +838,7 @@
     const options={method,headers:{}};
     if(body!==undefined){options.headers["Content-Type"]="application/json";options.body=JSON.stringify(body);}
     const r=await fetch(url,options); const d=await r.json();
+    if(r.status===401){ showAuthGate(); throw Error(d.error||"请先登录"); }
     if(!r.ok) throw Error(d.error||`请求失败 ${r.status}`);
     return d;
   }
@@ -996,6 +997,65 @@
   $(".icon-btn").addEventListener("click",()=>toast("方向键切换预览；先确认大纲，再生成；历史版本可随时查看。"));
 
   /* ================= 初始化 ================= */
+  /* ================= 登录 ================= */
+  let authUser=null, cooldownTimer=null;
+  function showAuthGate(show=true){
+    const gate=$("#authGate"); if(!gate) return;
+    gate.hidden=!show;
+    document.body.style.overflow=show?"hidden":"";
+    if(show) setTimeout(()=>$("#authEmail").focus(),50);
+  }
+  function applyUser(user){
+    authUser=user;
+    $$(".user-chip b").forEach(x=>x.textContent=user.email);
+    $$(".user-chip span").forEach(x=>x.textContent="数据仅本人可见");
+    const head=$("#accountPopover .ap-head");
+    if(head){ const b=head.querySelector("b"), sp=head.querySelector("span");
+      if(b) b.textContent=user.email; if(sp) sp.textContent="已登录 · 数据隔离"; }
+    const avatar=$("#accountPopover .avatar"); if(avatar) avatar.textContent=user.email.slice(0,1).toUpperCase();
+  }
+  async function authBoot(){
+    try{ const r=await fetch("/api/auth/me"); if(r.ok){ applyUser(await r.json()); return true; } }catch(error){}
+    showAuthGate(true); return false;
+  }
+  function authMsg(text){ const el=$("#authMsg"); if(el) el.textContent=text||""; }
+  async function sendAuthCode(){
+    const email=$("#authEmail").value.trim();
+    if(!email){ authMsg("请填写邮箱"); return; }
+    const button=$("#btnSendCode"); button.disabled=true; authMsg("正在发送…");
+    try{
+      const r=await fetch("/api/auth/code",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
+      const d=await r.json();
+      if(!r.ok){ authMsg(d.error||"发送失败"); return; }
+      $("#authCodeRow").hidden=false; $("#authCode").focus();
+      if(d.devCode){ $("#authCode").value=d.devCode; authMsg("本机调试验证码已填入：" + d.devCode); }
+      else authMsg("验证码已发送，请查收邮箱（10 分钟内有效）");
+      let left=45; const tick=()=>{ $("#authCooldown").textContent=left>0?`${left}s 后可重发`:""; if(left--<=0){clearInterval(cooldownTimer);button.disabled=false;} };
+      clearInterval(cooldownTimer); button.disabled=true; tick(); cooldownTimer=setInterval(tick,1000);
+    }catch(error){ authMsg("网络异常，请重试"); }
+    finally{ button.disabled = button.disabled || false; }
+  }
+  async function doLogin(){
+    const email=$("#authEmail").value.trim(), code=$("#authCode").value.trim();
+    if(!email||!/^\d{6}$/.test(code)){ authMsg("请输入邮箱和 6 位验证码"); return; }
+    const button=$("#btnDoLogin"); button.disabled=true; authMsg("正在登录…");
+    try{
+      const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code})});
+      const d=await r.json();
+      if(!r.ok){ authMsg(d.error||"登录失败"); button.disabled=false; return; }
+      location.reload();
+    }catch(error){ authMsg("网络异常，请重试"); button.disabled=false; }
+  }
+  async function doLogout(){
+    try{ await fetch("/api/auth/logout",{method:"POST"}); }catch(error){}
+    location.reload();
+  }
+  $("#btnSendCode").addEventListener("click",sendAuthCode);
+  $("#btnDoLogin").addEventListener("click",doLogin);
+  $("#btnLogout").addEventListener("click",doLogout);
+  $("#authEmail").addEventListener("keydown",e=>{ if(e.key==="Enter") sendAuthCode(); });
+  $("#authCode").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+
   setCount(12);
   renderRefs();
   $("#sumStyle").textContent = STYLE_MAP[state.style];
@@ -1005,10 +1065,13 @@
   goStep(1);
   const saved=new URLSearchParams(location.search).get("task")||localStorage.getItem("pptnative-task");
   const initialFeature = INITIAL_PARAMS.get("feature");
-  showDrafts().then(()=>{ if(saved && !initialFeature) openDraft(saved); }).finally(()=>{
-    if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
+  authBoot().then(authed=>{
+    if(!authed) return;
+    showDrafts().then(()=>{ if(saved && !initialFeature) openDraft(saved); }).finally(()=>{
+      if(initialFeature === "pdf" || initialFeature === "word") setTimeout(()=>switchFeature(initialFeature), 0);
+    });
+    refreshKnowledge().catch(report);
   });
-  refreshKnowledge().catch(report);
   if(window.innerWidth <= 860){
     const activeNav = $(".nav-item.active");
     if(activeNav) activeNav.scrollIntoView({inline:"center", block:"nearest"});

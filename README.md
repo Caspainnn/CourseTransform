@@ -205,3 +205,24 @@ scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```
 
 许可证与第三方边界见 [LICENSE.md](LICENSE.md)、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 登录与数据隔离
+
+公网部署必须开启邮箱验证码登录。每个账户的数据写入 `data/users/<uid>/{tasks,files,knowledge,pipeline}`，
+任务/文件/知识库的读取与列表均校验归属，解析与教案任务按用户独立实例运行。
+
+```bash
+AUTH_SECRET=<32+ 字节随机串>       # 不设则自动生成 data/auth/session-secret.txt
+SMTP_HOST=smtp.example.com
+SMTP_PORT=465
+SMTP_USER=no-reply@example.com
+SMTP_PASS=<smtp 授权码>
+SMTP_FROM=no-reply@example.com
+SMTP_SSL=1
+AUTH_COOKIE_SECURE=1               # HTTPS 部署时开启
+```
+
+本机调试可设 `AUTH_DEV_CODE=1`（验证码直接回显，公网禁用）；首次升级可设 `AUTH_CLAIM_LEGACY=1`
+把旧的单用户数据迁入第一个登录账户。`AUTH_DISABLED=1` 仅供自动化测试，切勿在生产开启。
+
+登录后可在左下角“用户信息”菜单退出登录；退出会清空会话，未登录时所有 `/api/*` 返回 401。

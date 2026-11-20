@@ -381,17 +381,21 @@ class PipelineService:
         return {'refs': refs, 'topic': topic, 'artifactId': artifact_id}
 
 
-def create_blueprint(data_dir):
-    service = PipelineService(data_dir)
+def create_blueprint(data_dir, service_factory=None):
+    default = PipelineService(data_dir)
     bp = Blueprint('pipeline_api', __name__, url_prefix='/api/pipeline')
+
+    def service():
+        # Per-user instance: jobs, artifacts and lessons stay inside that user's tree.
+        return service_factory() if service_factory else default
 
     @bp.get('/artifacts')
     def artifacts():
-        return jsonify(service.artifacts.list(request.args.get('stage'), limit=60))
+        return jsonify(service().artifacts.list(request.args.get('stage'), limit=60))
 
     @bp.get('/artifacts/<ident>')
     def artifact_detail(ident):
-        record = service.artifacts.get(ident)
+        record = service().artifacts.get(ident)
         if not record:
             raise Problem('阶段产物不存在', 404, 'E_NOT_FOUND')
         record['downloads'] = list((record.get('files') or {}).keys())
@@ -399,10 +403,10 @@ def create_blueprint(data_dir):
 
     @bp.get('/artifacts/<ident>/download/<kind>')
     def artifact_download(ident, kind):
-        record = service.artifacts.get(ident)
+        record = service().artifacts.get(ident)
         if not record:
             raise Problem('阶段产物不存在', 404, 'E_NOT_FOUND')
-        path = service.artifacts.file_path(record, kind)
+        path = service().artifacts.file_path(record, kind)
         if not path:
             raise Problem('该产物没有此文件', 404, 'E_NOT_FOUND')
         return send_file(path, as_attachment=True, download_name=path.name)
@@ -410,7 +414,7 @@ def create_blueprint(data_dir):
     @bp.post('/handoff/ppt')
     def handoff():
         body = request.get_json() or {}
-        return jsonify(service.handoff_to_ppt(body.get('artifactId')))
+        return jsonify(service().handoff_to_ppt(body.get('artifactId')))
 
     # ---- PDF stage ----------------------------------------------------
     @bp.post('/pdf/jobs')
@@ -418,34 +422,34 @@ def create_blueprint(data_dir):
         upload = request.files.get('file')
         if not upload or not upload.filename:
             raise Problem('请选择 PDF 文件')
-        job = service._new_pdf(upload)
-        return jsonify(service._pdf_public(job)), 202
+        job = service()._new_pdf(upload)
+        return jsonify(service()._pdf_public(job)), 202
 
     @bp.get('/pdf/jobs')
     def pdf_list():
         jobs = []
-        for path in sorted((service.root / 'pdf').glob('*/job.json')):
+        for path in sorted((service().root / 'pdf').glob('*/job.json')):
             job = read_json(path)
             if job:
-                jobs.append(service._pdf_public(job))
+                jobs.append(service()._pdf_public(job))
         jobs.sort(key=lambda item: item.get('created', ''), reverse=True)
         return jsonify(jobs[:40])
 
     @bp.get('/pdf/jobs/<ident>')
     def pdf_detail(ident):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
-        return jsonify(service._pdf_public(job))
+        return jsonify(service()._pdf_public(job))
 
     @bp.get('/pdf/jobs/<ident>/preview/<int:index>')
     def pdf_preview(ident, index):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         chapters = job.get('chapters') or [] if job else []
         if not job or not 0 < index <= len(chapters):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
-        artifact = service.artifacts.get(chapters[index - 1].get('artifactId') or '')
-        path = service.artifacts.file_path(artifact, 'md') if artifact else None
+        artifact = service().artifacts.get(chapters[index - 1].get('artifactId') or '')
+        path = service().artifacts.file_path(artifact, 'md') if artifact else None
         if not path:
             raise Problem('Markdown 文件不存在', 404, 'E_NOT_FOUND')
         return send_file(path, mimetype='text/markdown; charset=utf-8')
@@ -456,12 +460,12 @@ def create_blueprint(data_dir):
         markdown = payload.get('markdown')
         if not isinstance(markdown, str):
             raise Problem('缺少 markdown 内容', 400, 'E_INVALID_INPUT')
-        job = service.save_pdf_chapter(ident, index, markdown)
-        return jsonify(service._pdf_public(job))
+        job = service().save_pdf_chapter(ident, index, markdown)
+        return jsonify(service()._pdf_public(job))
 
     @bp.get('/pdf/jobs/<ident>/bundle')
     def pdf_bundle(ident):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
         chapters = job.get('chapters') or []
@@ -479,8 +483,8 @@ def create_blueprint(data_dir):
         seen = set()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
             for chapter in chapters:
-                artifact = service.artifacts.get(chapter.get('artifactId') or '')
-                md_path = service.artifacts.file_path(artifact, 'md') if artifact else None
+                artifact = service().artifacts.get(chapter.get('artifactId') or '')
+                md_path = service().artifacts.file_path(artifact, 'md') if artifact else None
                 if not md_path:
                     continue
                 md_name = md_path.name
@@ -488,7 +492,7 @@ def create_blueprint(data_dir):
                     md_name = f'{md_path.stem}-{chapter.get("index")}{md_path.suffix}'
                 seen.add(md_name)
                 archive.write(md_path, arcname=f'markdown/{md_name}')
-                folder = service.artifacts.folder(artifact['id'])
+                folder = service().artifacts.folder(artifact['id'])
                 images = []
                 for path in sorted((folder / 'images').glob('*')):
                     if not path.is_file():
@@ -513,14 +517,14 @@ def create_blueprint(data_dir):
 
     @bp.get('/pdf/jobs/<ident>/images/<int:index>/<path:name>')
     def pdf_image(ident, index, name):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         chapters = job.get('chapters') or [] if job else []
         if not job or not 0 < index <= len(chapters):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
         if Path(name).name != name:
             raise Problem('图片不存在', 404, 'E_NOT_FOUND')
-        artifact = service.artifacts.get(chapters[index - 1].get('artifactId') or '')
-        folder = service.artifacts.folder(artifact['id']) if artifact else None
+        artifact = service().artifacts.get(chapters[index - 1].get('artifactId') or '')
+        folder = service().artifacts.folder(artifact['id']) if artifact else None
         path = (folder / 'images' / name).resolve() if folder else None
         if not path or not path.is_file() or not path.is_relative_to(folder.resolve()):
             raise Problem('图片不存在', 404, 'E_NOT_FOUND')
@@ -528,26 +532,26 @@ def create_blueprint(data_dir):
 
     @bp.get('/pdf/jobs/<ident>/download/<int:index>')
     def pdf_download(ident, index):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         chapters = job.get('chapters') or [] if job else []
         if not job or not 0 < index <= len(chapters):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
-        artifact = service.artifacts.get(chapters[index - 1].get('artifactId') or '')
-        path = service.artifacts.file_path(artifact, 'md') if artifact else None
+        artifact = service().artifacts.get(chapters[index - 1].get('artifactId') or '')
+        path = service().artifacts.file_path(artifact, 'md') if artifact else None
         if not path:
             raise Problem('Markdown 文件不存在', 404, 'E_NOT_FOUND')
         return send_file(path, as_attachment=True, download_name=path.name)
 
     @bp.get('/pdf/jobs/<ident>/images/<int:index>.zip')
     def pdf_images(ident, index):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         chapters = job.get('chapters') or [] if job else []
         if not job or not 0 < index <= len(chapters):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
-        artifact = service.artifacts.get(chapters[index - 1].get('artifactId') or '')
+        artifact = service().artifacts.get(chapters[index - 1].get('artifactId') or '')
         if not artifact:
             raise Problem('章节产物不存在', 404, 'E_NOT_FOUND')
-        folder = service.artifacts.folder(artifact['id'])
+        folder = service().artifacts.folder(artifact['id'])
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as archive:
             for path in sorted((folder / 'images').glob('*')):
@@ -559,14 +563,14 @@ def create_blueprint(data_dir):
 
     @bp.get('/pdf/jobs/<ident>/log')
     def pdf_log(ident):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
         return jsonify(log=job.get('log') or [])
 
     @bp.post('/pdf/jobs/<ident>/retry')
     def pdf_retry(ident):
-        job = service._pdf_job(ident)
+        job = service()._pdf_job(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
         if job.get('status') in ('queued', 'running'):
@@ -577,9 +581,9 @@ def create_blueprint(data_dir):
         if not source.is_file():
             raise Problem('原始 PDF 缺失，无法重试', 409, 'E_INPUT_MISSING')
         job.update(status='queued', error=None, code=None, log=['重新执行'], updated=now())
-        service._save_pdf_job(job)
-        threading.Thread(target=service._run_pdf, args=(ident,), daemon=True).start()
-        return jsonify(service._pdf_public(job)), 202
+        service()._save_pdf_job(job)
+        threading.Thread(target=service()._run_pdf, args=(ident,), daemon=True).start()
+        return jsonify(service()._pdf_public(job)), 202
 
     # ---- lesson stage --------------------------------------------------
     @bp.post('/lesson/models')
@@ -613,7 +617,7 @@ def create_blueprint(data_dir):
         knowledge_ids = payload.get('knowledgeRefs') or []
         if not upload and not artifact_ids and not knowledge_ids:
             raise Problem('请选择教材/模板资料，或上传 Markdown')
-        folder = service.root / 'lesson' / 'staging' / uuid.uuid4().hex
+        folder = service().root / 'lesson' / 'staging' / uuid.uuid4().hex
         folder.mkdir(parents=True)
         source = {'textbookArtifacts': [], 'knowledgeRefs': [], 'textbookName': '',
                   'pdfNames': [], 'pdfSha256': []}
@@ -626,10 +630,10 @@ def create_blueprint(data_dir):
             for knowledge_id in knowledge_ids:
                 if not isinstance(knowledge_id, str) or not re.fullmatch(r'[a-f0-9]{32}', knowledge_id):
                     raise Problem('知识库资料 ID 无效')
-                entry = read_json(service.data / 'knowledge' / knowledge_id / 'entry.json')
+                entry = read_json(service().data / 'knowledge' / knowledge_id / 'entry.json')
                 if not entry:
                     raise Problem('知识库资料不存在', 404, 'E_NOT_FOUND')
-                record = read_json(service.data / 'files' / entry['fileId'] / 'file.json')
+                record = read_json(service().data / 'files' / entry['fileId'] / 'file.json')
                 if not record:
                     raise Problem('知识库文件不存在', 404, 'E_NOT_FOUND')
                 source_path = Path(record.get('path') or '')
@@ -656,10 +660,10 @@ def create_blueprint(data_dir):
                     raise Problem('知识库当前仅支持 Markdown 教材或 DOCX 模板')
             if artifact_ids:
                 for artifact_id in artifact_ids:
-                    artifact = service.artifacts.get(artifact_id)
+                    artifact = service().artifacts.get(artifact_id)
                     if not artifact or artifact.get('stage') != 'pdf2md':
                         raise Problem('所选的教材产物不存在或阶段不符')
-                    folder_art = service.artifacts.folder(artifact_id)
+                    folder_art = service().artifacts.folder(artifact_id)
                     artifact['_folder'] = str(folder_art)
                     md_names = artifact['files'].get('md')
                     parts = [(folder_art / name).read_text(encoding='utf-8')
@@ -707,47 +711,47 @@ def create_blueprint(data_dir):
             for staged in sorted(images_dir.glob('*')):
                 if staged.is_file():
                     images.append(FileStorage(stream=open(staged, 'rb'), filename=staged.name))
-            ident = service.lessons.create(
+            ident = service().lessons.create(
                 textbook_path=folder / 'textbook.md', templates=templates, images=images,
                 payload=payload, source=source,
             )
         finally:
             shutil.rmtree(folder, ignore_errors=True)
-        return jsonify(service.lessons.public(service.lessons.get(ident))), 202
+        return jsonify(service().lessons.public(service().lessons.get(ident))), 202
 
     @bp.get('/lesson/jobs')
     def lesson_list():
         jobs = []
-        for path in sorted((service.root / 'lesson').glob('*/job.json'), key=lambda p: p.stat().st_mtime, reverse=True):
-            job = service.lessons._read(path)
+        for path in sorted((service().root / 'lesson').glob('*/job.json'), key=lambda p: p.stat().st_mtime, reverse=True):
+            job = service().lessons._read(path)
             if job:
-                jobs.append(service.lessons.public(job))
+                jobs.append(service().lessons.public(job))
         return jsonify(jobs[:40])
 
     @bp.get('/lesson/jobs/<ident>')
     def lesson_detail(ident):
-        job = service.lessons.get(ident)
+        job = service().lessons.get(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
-        return jsonify(service.lessons.public(job))
+        return jsonify(service().lessons.public(job))
 
     @bp.get('/lesson/jobs/<ident>/docx/<int:index>')
     def lesson_docx(ident, index):
-        path = service.lessons.docx_path(ident, index)
+        path = service().lessons.docx_path(ident, index)
         if not path:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         return send_file(path, as_attachment=True, download_name=path.name)
 
     @bp.get('/lesson/jobs/<ident>/docx/<int:index>/html')
     def lesson_docx_html(ident, index):
-        path = service.lessons.docx_path(ident, index)
+        path = service().lessons.docx_path(ident, index)
         if not path:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         return render_docx_html(path), 200, {'Content-Type': 'text/html; charset=utf-8'}
 
     @bp.get('/lesson/jobs/<ident>/docx/<int:index>/blocks')
     def lesson_docx_blocks(ident, index):
-        data = service.lessons.docx_blocks(ident, index)
+        data = service().lessons.docx_blocks(ident, index)
         if not data:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         return jsonify(data)
@@ -758,20 +762,20 @@ def create_blueprint(data_dir):
         edits = payload.get('blocks')
         if not isinstance(edits, list):
             raise Problem('缺少编辑内容', 400, 'E_INVALID_INPUT')
-        result = service.lessons.edit_docx(ident, index, edits)
-        job = service.lessons.public(service.lessons.get(ident))
+        result = service().lessons.edit_docx(ident, index, edits)
+        job = service().lessons.public(service().lessons.get(ident))
         return jsonify({'job': job, 'edit': result})
 
     @bp.get('/lesson/jobs/<ident>/preview/<int:index>')
     def lesson_preview(ident, index):
-        path = service.lessons.preview_md(ident, index)
+        path = service().lessons.preview_md(ident, index)
         if not path:
             raise Problem('中间稿不存在', 404, 'E_NOT_FOUND')
         return send_file(path, mimetype='text/markdown; charset=utf-8')
 
     @bp.get('/lesson/jobs/<ident>/file/<int:index>/<kind>')
     def lesson_file(ident, index, kind):
-        job = service.lessons.get(ident)
+        job = service().lessons.get(ident)
         results = (job or {}).get('results') or []
         if not 0 < index <= len(results):
             raise Problem('章节不存在', 404, 'E_NOT_FOUND')
@@ -785,7 +789,7 @@ def create_blueprint(data_dir):
 
     @bp.get('/lesson/jobs/<ident>/log')
     def lesson_log(ident):
-        text = service.lessons.log(ident)
+        text = service().lessons.log(ident)
         if text is None:
             raise Problem('日志不存在', 404, 'E_NOT_FOUND')
         if request.args.get('format') == 'text':
@@ -796,22 +800,22 @@ def create_blueprint(data_dir):
     def lesson_retry(ident):
         body = request.get_json(silent=True) or {}
         api_payload = body.get('api') if isinstance(body.get('api'), dict) else None
-        new_id = service.lessons.retry(ident, api_payload)
-        return jsonify(service.lessons.public(service.lessons.get(new_id))), 202
+        new_id = service().lessons.retry(ident, api_payload)
+        return jsonify(service().lessons.public(service().lessons.get(new_id))), 202
 
     @bp.post('/lesson/jobs/<ident>/artifact/<int:index>')
     def lesson_artifact(ident, index):
-        job = service.lessons.get(ident)
+        job = service().lessons.get(ident)
         if not job:
             raise Problem('任务不存在', 404, 'E_NOT_FOUND')
-        meta = service.lessons.docx_meta(ident, index)
+        meta = service().lessons.docx_meta(ident, index)
         if not meta:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         if meta['status'] not in ('ok', 'ok_with_warnings'):
             raise Problem('该学时质检未通过，不能作为成功产物进入 PPT 阶段', 409, 'E_QUALITY_FAILED')
         path = meta['path']
         title = meta['title'].replace('_教案', '')
-        record = service.artifacts.register(
+        record = service().artifacts.register(
             stage='lesson', title=title,
             source={'jobId': ident, 'docxSha256': sha256_file(path),
                     'textbookArtifacts': (job.get('source') or {}).get('textbookArtifacts') or [],

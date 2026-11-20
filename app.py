@@ -11,9 +11,9 @@ import threading
 import uuid
 import zipfile
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, session
 from documents import Problem, checked_zip, decode, parse_document
 from werkzeug.exceptions import HTTPException
 from pptx import Presentation
@@ -21,6 +21,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptnative.models import ask, read, save
 from webapp.runtime_lock import powerpoint_exclusive, acquire_instance_lock
+import auth
 
 ROOT = Path(__file__).resolve().parent
 IDENT = re.compile(r'^[a-f0-9]{32}$')
@@ -82,9 +83,15 @@ def style_template(style, path):
 def create_app(data_dir=None):
     app = Flask(__name__, static_folder=str(ROOT / 'static'), static_url_path='/static')
     app.config['MAX_CONTENT_LENGTH'] = 200 * 1024**2
-    data = Path(data_dir or os.environ.get('PPTNATIVE_DATA_DIR', ROOT / 'data')).resolve()
-    for folder in ('files', 'tasks', 'knowledge'):
-        (data / folder).mkdir(parents=True, exist_ok=True)
+    base = Path(data_dir or os.environ.get('PPTNATIVE_DATA_DIR', ROOT / 'data')).resolve()
+    base.mkdir(parents=True, exist_ok=True)
+    (base / 'users').mkdir(exist_ok=True)
+    (base / 'auth').mkdir(exist_ok=True)
+    app.secret_key = auth.secret(base)
+    app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
+                      SESSION_COOKIE_SECURE=os.environ.get('AUTH_COOKIE_SECURE') == '1',
+                      PERMANENT_SESSION_LIFETIME=timedelta(days=30))
+    data = auth.DataRoot(base)
     jobs = queue.Queue()
     def directory(kind, ident):
         if not IDENT.fullmatch(ident):
@@ -92,6 +99,12 @@ def create_app(data_dir=None):
         path = data / kind / ident
         if not path.exists() or not path.resolve().is_relative_to((data / kind).resolve()):
             raise Problem('记录不存在', 404, 'E_NOT_FOUND')
+        record_name = {'tasks': 'task.json', 'files': 'file.json', 'knowledge': 'entry.json'}.get(kind)
+        if record_name:
+            record_path = path / record_name
+            owner = read(record_path).get('owner') if record_path.exists() else None
+            if owner != auth.current_uid():
+                raise Problem('记录不存在', 404, 'E_NOT_FOUND')
         return path
     def get_task(ident):
         return read(directory('tasks', ident) / 'task.json')
@@ -258,8 +271,9 @@ def create_app(data_dir=None):
         target = data / 'tasks' / task['id'] / 'approved-outline.md'
         target.write_bytes(('\n\n'.join(lines) + '\n').encode('utf-8'))
         return target
-    def execute(ident, kind, payload, token=None):
+    def execute(ident, kind, payload, token=None, owner=None):
         from pptnative import pipeline
+        auth.set_thread_user(owner)
         with MUTEX:
             task = get_task(ident)
             if token is not None and (task.get('operationId') != token or task['status'] != 'queued'):
@@ -315,7 +329,7 @@ def create_app(data_dir=None):
             finally:
                 jobs.task_done()
     threading.Thread(target=worker, daemon=True).start()
-    for path in (data / 'tasks').glob('*/task.json'):
+    for path in list((data / 'tasks').glob('*/task.json')) + list((base / 'users').glob('*/tasks/*/task.json')):
         task = read(path)
         if task['status'] in ('queued', 'running'):
             task.update(status='interrupted', lastOperation=task.get('lastOperation') or task.get('operation'), operation=None)
@@ -329,7 +343,7 @@ def create_app(data_dir=None):
             task.update(status='queued', operation=kind, operationId=token, error=None,
                         lastOperation=kind, lastPayload=payload or {})
             write_task(task)
-            jobs.put((task['id'], kind, payload or {}, token))
+            jobs.put((task['id'], kind, payload or {}, token, auth.current_uid()))
         return jsonify(project(task)), 202
     def check_current(task, body):
         kernel = data / 'tasks' / task['id'] / 'kernel'
@@ -361,6 +375,48 @@ def create_app(data_dir=None):
         response.headers['Cache-Control'] = 'no-store'
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
         return response
+    @app.get('/api/auth/me')
+    def auth_me():
+        uid = auth.current_uid()
+        if not uid:
+            return jsonify(error='请先登录', code='E_UNAUTHORIZED'), 401
+        email = session.get('email') or ''
+        return jsonify({'id': uid, 'email': email})
+
+    @app.post('/api/auth/code')
+    def auth_code_route():
+        body = request.get_json() or {}
+        try:
+            result = auth.request_code(base, body.get('email', ''))
+        except ValueError as error:
+            return jsonify(error=str(error), code='E_AUTH'), 400
+        if result.get('delivery') == 'unconfigured':
+            return jsonify(error='邮件服务未配置，无法发送验证码；请配置 SMTP_HOST/SMTP_FROM 或在本机设置 AUTH_DEV_CODE=1',
+                           code='E_MAIL_UNCONFIGURED'), 503
+        return jsonify(result)
+
+    @app.post('/api/auth/login')
+    def auth_login():
+        body = request.get_json() or {}
+        try:
+            record = auth.verify_code(base, body.get('email', ''), body.get('code', ''))
+        except ValueError as error:
+            return jsonify(error=str(error), code='E_AUTH'), 400
+        if os.environ.get('AUTH_CLAIM_LEGACY') == '1':
+            auth.claim_legacy(base, record['id'])
+        session.clear()
+        session.permanent = True
+        session['uid'] = record['id']
+        session['email'] = record['email']
+        return jsonify(auth.public_user(record))
+
+    @app.post('/api/auth/logout')
+    def auth_logout():
+        session.clear()
+        return jsonify({'ok': True})
+
+    auth.guard(app, base)
+
     @app.get('/')
     def index():
         return send_file(ROOT / 'static/index.html')
@@ -391,7 +447,7 @@ def create_app(data_dir=None):
         path.write_bytes(content)
         record = {'id': ident, 'fileId': ident, 'name': name, 'title': name, 'size': len(content),
                   'kind': 'template' if template else 'reference', 'sha256': hashlib.sha256(content).hexdigest(),
-                  'path': str(path), 'created': now()}
+                  'path': str(path), 'created': now(), 'owner': auth.current_uid()}
         try:
             if template:
                 with checked_zip(path) as z:
@@ -427,7 +483,8 @@ def create_app(data_dir=None):
     def knowledge():
         q, category = request.args.get('q', '').lower(), request.args.get('type')
         entries = [read(x) for x in sorted((data / 'knowledge').glob('*/entry.json'))]
-        return jsonify([x for x in entries if (not q or q in (x['title'] + x['desc']).lower()) and (not category or category == x['type'])])
+        return jsonify([x for x in entries if x.get('owner') == auth.current_uid()
+                        and (not q or q in (x['title'] + x['desc']).lower()) and (not category or category == x['type'])])
     @app.post('/api/knowledge')
     def publish():
         body = request.get_json() or {}
@@ -436,12 +493,15 @@ def create_app(data_dir=None):
             raise Problem('知识库类型无效')
         ident = uuid.uuid4().hex
         entry = {'id': ident, 'fileId': f['fileId'], 'title': body.get('title') or f['name'],
-                 'type': body.get('type', 'jiaocai'), 'desc': f['text'][:160], 'meta': f['meta'], 'created': now()}
+                 'type': body.get('type', 'jiaocai'), 'desc': f['text'][:160], 'meta': f['meta'], 'created': now(),
+                 'owner': auth.current_uid()}
         save(data / 'knowledge' / ident / 'entry.json', entry)
         return jsonify(entry), 201
     @app.get('/api/tasks')
     def tasks():
-        return jsonify([project(read(x)) for x in sorted((data / 'tasks').glob('*/task.json'), key=lambda p: p.stat().st_mtime, reverse=True)])
+        records = [read(x) for x in sorted((data / 'tasks').glob('*/task.json'),
+                                           key=lambda p: p.stat().st_mtime, reverse=True)]
+        return jsonify([project(x) for x in records if x.get('owner') == auth.current_uid()])
     @app.post('/api/tasks')
     def new_task():
         body = request.get_json() or {}
@@ -466,7 +526,8 @@ def create_app(data_dir=None):
             raise Problem('模板类型错误')
         task = {k: body.get(k, '') for k in ('topic', 'teacher', 'audience', 'duration', 'extra')}
         task.update(id=uuid.uuid4().hex, count=count, style=body.get('style', 'academic'), template=body.get('template'),
-                    refs=refs, localRefs=local, outline=[], outlineRevision=0, status='draft', operation=None, created=now())
+                    refs=refs, localRefs=local, outline=[], outlineRevision=0, status='draft', operation=None,
+                    created=now(), owner=auth.current_uid())
         if body.get('outline'):
             task['outline'] = validate_outline(body['outline'])
         write_task(task)
@@ -631,10 +692,20 @@ def create_app(data_dir=None):
         response.headers['X-Content-SHA256'] = hashlib.sha256(deck.read_bytes()).hexdigest()
         response.headers['X-Version-Status'] = manifest['status']
         return response
-    from pipeline.web import create_blueprint
-    pipeline_bp, pipeline_service = create_blueprint(data)
+    from pipeline.web import create_blueprint, PipelineService
+    pipeline_cache = {}
+    def pipeline_for():
+        uid = auth.current_uid()
+        key = uid or 'public'
+        if key not in pipeline_cache:
+            if os.environ.get('AUTH_DISABLED') == '1' or not uid:
+                pipeline_cache[key] = PipelineService(base)
+            else:
+                pipeline_cache[key] = PipelineService(auth.user_root(base, uid))
+        return pipeline_cache[key]
+    pipeline_bp, _ = create_blueprint(base, service_factory=pipeline_for)
     app.register_blueprint(pipeline_bp)
-    app.extensions['pipeline'] = pipeline_service
+    app.extensions['pipeline'] = pipeline_for
     app.extensions['product'] = {'data': data, 'enqueue': enqueue, 'execute': execute}
     return app
 
