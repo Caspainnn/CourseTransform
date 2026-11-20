@@ -102,6 +102,12 @@ def recognize(text, version, plan, api, allowed_page_ids=None):
         "pages": [{"number": i, "id": p["id"], "title": p["title"]}
                   for i, p in enumerate(plan["pages"], 1)]})
     known = {p["id"] for p in plan["pages"]}
+    if result["kind"] == "clarify" and allowed_page_ids and re.search(
+            r"(深色|暗色|深蓝|墨绿|炭黑|浅色|亮色|白底|黑色|蓝黑)", text):
+        # "换成深色系" is an executable style instruction, not a missing detail:
+        # treat it as a page edit instead of asking the user for a hex code.
+        return {"kind": "edit_page", "page_ids": list(allowed_page_ids), "new_title": None,
+                "instruction": text, "reason": "配色要求按可执行单页修改处理", "simulation": False}
     if result["kind"] == "clarify":
         return result
     if allowed_page_ids is not None and (result.get('page_ids') != allowed_page_ids or result['kind'] == 'merge_pages'):

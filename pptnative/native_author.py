@@ -1164,6 +1164,13 @@ def run(job, version, contract, source, parent=None):
         if page_findings_all:
             instruction += ('\n本轮必须修复质检问题：' + '；'.join(i['evidence'] for i in page_findings_all) +
                             '。缺失的对象、主语、条件与关键操作必须逐字出现在本页上屏文本中，不能只写在备注里。')
+        tone_request = (contract.get('request') or {}).get('instruction') or ''
+        if re.search(r'深色|暗色|深蓝|墨绿|炭黑|黑色|蓝黑', tone_request):
+            instruction += ('\n本页整体改为深色系：背景用深海军蓝 #1B3B88（或更深的实色），'
+                            '标题与正文用白色/浅灰 #E8ECF5，强调色 #157A9E；不得保留白底或浅色卡片。')
+        elif re.search(r'浅色|亮色|白底', tone_request):
+            instruction += ('\n本页整体改为浅色系：白色 #FFFFFF 背景，深蓝 #1B3B88 标题，'
+                            '卡片用 #F5F6FA，强调色 #157A9E。')
         if mode == "template-fill":
             eligible_titles = title_slots(base, page["title"])
             with metadata_lock:

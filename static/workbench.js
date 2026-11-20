@@ -489,6 +489,10 @@
         text,pageId:slide.id,base_version:state.version});
       addChat($("#reviseLog"),text,"me"); $("#reviseInput").value="";
       await followTask();
+      const pending=state.task?.result;
+      if(pending?.status==="needs_input"&&pending.question){
+        addChat($("#reviseLog"),pending.question,"ai"); toast(pending.question);
+      }
     } catch(error){ report(error); }
   });
   async function downloadPPT(confirmVersion=false){
