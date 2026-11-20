@@ -862,6 +862,10 @@ def prepare(job, version, contract, source, parent=None):
     # the rematch budget.
     title_eligible = {p["id"]: sorted(n for n in allowed if heading_fits(n, p["title"]))
                       for p in changed if not p["asset_ids"]} if not parent else {}
+    # A template may have headings too small for any full lesson title (calligraphic
+    # decks often cap them at ~26px). Rather than failing the deck, that page is
+    # composed inside the template style and the limitation is recorded.
+    forced_recompose = {p["id"] for p in changed if not p["asset_ids"] and not title_eligible.get(p["id"])} if not parent else set()
     def validate_choices(data):
         pages = data.get("pages")
         if not isinstance(pages, list) or not all(isinstance(p, dict) for p in pages):
@@ -912,15 +916,18 @@ def prepare(job, version, contract, source, parent=None):
         number = selected[page["id"]]["source_slide"]
         if type(number) is not int or number not in range(1, len(items) + 1):
             raise ValueError("Invalid real template page selection")
-        mode = 'template-fill' if title_only else route_for(page)
+        mode = 'template-fill' if title_only else ('local-recompose' if page["id"] in forced_recompose else route_for(page))
         svg = (directory / f"slide_{number:02}.svg").read_text(encoding="utf-8")
         if mode == "local-recompose":
             svg = fresh_canvas(svg)
         name = re.sub(r"[^A-Za-z0-9_-]", "_", page["id"]) + ".svg"
         (directory / name).write_text(svg, encoding="utf-8")
         (version / "authoring-bases" / name).write_text(svg, encoding="utf-8")
+        rationale = selected[page["id"]]["rationale"]
+        if page["id"] in forced_recompose:
+            rationale = (rationale + " [本地重排：模板标题槽放不下完整标题]").strip()
         mapping.append({"id": page["id"], "source_slide": number, "svg": name, "edit_mode": mode,
-                        "rationale": selected[page["id"]]["rationale"], "pending_author": True})
+                        "rationale": rationale, "pending_author": True})
         routes.append({"id": page["id"], "mode": mode, "asset_ids": page["asset_ids"],
                        "source_slide": number, "empty_slide_local_canvas": mode == "local-recompose"})
     save(version / "page-routing.json", routes)
@@ -1044,6 +1051,26 @@ def run(job, version, contract, source, parent=None):
     metadata_lock = threading.Lock()
     run_source_history = {}
 
+    def switch_to_recompose(page, reason):
+        choice = choices[page["id"]]
+        source_svg = (workspace / "authoring-svg-flat" / f"slide_{choice['source_slide']:02}.svg").read_text(encoding="utf-8")
+        base_svg = fresh_canvas(source_svg)
+        with metadata_lock:
+            (version / "authoring-bases" / choice["svg"]).write_text(base_svg, encoding="utf-8")
+            (workspace / "authoring-svg-flat" / choice["svg"]).write_text(base_svg, encoding="utf-8")
+            choice.update(edit_mode="local-recompose", pending_author=True,
+                          rationale=(choice.get("rationale", "") + f" [本地重排：{reason}]").strip())
+            mapping["limitations"] = sorted(set(mapping.get("limitations") or []) |
+                                            {f"{page['id']}: {reason}；改用页内重排"})
+            save(version / "native-workspace.json", mapping)
+            save(workspace / "page_plan.json", {"schema": "ppt-master.roundtrip-page-plan.v1", "pages": [
+                {"source_slide": p["source_slide"], "svg": p["svg"]} for p in mapping["pages"]]})
+            routes = read(version / "page-routing.json")
+            for route in routes:
+                if route["id"] == page["id"]:
+                    route.update(mode="local-recompose", empty_slide_local_canvas=True)
+            save(version / "page-routing.json", routes)
+
     def rematch(page, reason):
         choice = choices[page["id"]]
         tried = run_source_history.setdefault(page['id'], {choice['source_slide']})
@@ -1063,6 +1090,9 @@ def run(job, version, contract, source, parent=None):
                        if title_slots((workspace / "authoring-svg-flat" / f"slide_{n:02}.svg")
                                       .read_text(encoding="utf-8"), page["title"])}
         if not allowed:
+            if not parent and choice.get("edit_mode") == "template-fill":
+                switch_to_recompose(page, "所有可用版式的标题槽都放不下完整标题")
+                return
             raise ValueError(f"{page['id']}: no untried compatible native layout remains")
         candidates = [x for x in catalog(version) if x['number'] in allowed]
         if not parent:
@@ -1151,7 +1181,7 @@ def run(job, version, contract, source, parent=None):
             digest = hashlib.sha256(json.dumps(page_findings_all, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
             author_stage += f"-repair-{digest[:8]}"
         facts = {ref: material["facts"][ref] for ref in page["point_ids"]}
-        mode = route_for(page)
+        mode = choice.get("edit_mode") or route_for(page)
         instruction = (
             "你是PPTNative的API页面编辑器，使用所附原版PPT Master原生往返契约制作一页。"
             "内容、布局与SVG由你决定，编排程序不代写页面。保持合同标题逐字可见；核心事实必须在上屏表达体现。"
@@ -1220,6 +1250,9 @@ def run(job, version, contract, source, parent=None):
                 "若不满足可读尺寸，必须重新安排全页主要区域，为图片让出空间，取消重复说明和装饰卡片；"
                 "不能只增大框宽却保留过小高度，也不能一直沿用原来的左右双栏。核心文字须与背景有充分对比。"
             )
+        if mode != "template-fill":
+            instruction += ("\n图片只能引用 assets 中列出的 workspace_href；不得引用 ../images/imageN 等模板原图，"
+                            "也不得新增未提供的图片；没有素材时请只用文字、色块与矢量图形。")
         payload = {"page": page, "facts": facts, "mode": mode, "canvas": base,
                    "source_slide": choice['source_slide'], "base_sha256": base_digest,
                    "text_fragments": slots(base) if mode == "template-fill" else [],
@@ -1318,7 +1351,7 @@ def run(job, version, contract, source, parent=None):
         metadata_only = error and any(message in error.get("error", "") for message in
                                       ("requires an id", "at most one slide solid background", "invalid nested SVG crop wrapper"))
         cache_allowed = not qa and not choice.get("rematch_count") and (not (error and not error.get("resolved")) or metadata_only)
-        if cached.exists() and not cache_allowed and not page_findings_all:
+        if cached.exists() and not cache_allowed and not page_findings_all and not (error and not error.get("resolved")):
             payload["previous_invalid_result"] = read(cached)
         recent_raw = sorted([*(version / 'api/author').glob(f'{author_stage}.*.raw.txt'),
                              *(version / 'api/author-fresh').glob(f'{author_stage}.*.raw.txt')],
@@ -1329,8 +1362,10 @@ def run(job, version, contract, source, parent=None):
             if retry.exists() and retry.stat().st_mtime >= recent.stat().st_mtime:
                 raw = recent.read_text(encoding='utf-8')
                 try:
-                    payload['previous_invalid_result'] = json.loads(raw[raw.index('{'):raw.rindex('}')+1])
-                    payload['validation_feedback'] = read(retry)['error']
+                    feedback = read(retry)['error']
+                    if 'image contract' not in feedback.lower():
+                        payload['previous_invalid_result'] = json.loads(raw[raw.index('{'):raw.rindex('}')+1])
+                    payload['validation_feedback'] = feedback
                     payload['current_candidate_is_unexported'] = True
                     instruction += 'previous_invalid_result为同一底稿上最近尚未导出的候选；优先准确修复validation_feedback，保留已满足的图片尺寸、核心语义和其他结构，不要重新退回旧成品的小图布局。旧成品视觉意见不代表新候选已经渲染。'
                 except (ValueError, KeyError):
