@@ -135,12 +135,13 @@ python scripts/pipeline_smoke.py --pdf examples/demo_textbook.pdf --template exa
 真实本机实测（2026-11-20，`http://127.0.0.1:7873/`）：
 
 - PDF→MD：`demo_textbook.pdf` 3 页 → 2 章、2 张原图；TOC 不进入正文；产出可下载 MD/图片 ZIP；
+- 扫描版 PDF→MD：`第6章.pdf` 13 页（无文字层）→ 本机 RapidOCR 13 页，均值置信度 0.966，114 秒 → 1 章 16,139 字符；原失败任务直接重试成功，页面显示 OCR 页数与置信度；
 - 教案：真实接口 `deepseek-v4-flash`，2 章自动拆 4 个学时；2 份 `ok_with_warnings`、2 份 `quality_failed`（质检原因：引用不足，未隐藏），成功学时 DOCX 真实可打开；
 - 交接：选择质检通过的“第一章”学时 → 知识库得到 1 份教案 DOCX + 2 份教材 MD（各带原图），PPT 页自动预选 3 份资料并预填课题；
 - PPT：真实大纲 8 页 → 原生制作 v001（8 页）→ 8 张真实 PNG → 用户确认 → 下载 `PPTNative-v001.pptx`（102,660 字节，8 页，`python-pptx` 可打开）；
 - 3 个页面均正常进入，导航/配色/断点沿用 stage3；PPT 原有 pytest 回归全部通过。
 
-可复查的任务目录：`data/tasks/413dc81c848244fb92c851bb6396ca81`（PPT v001）、`data/pipeline/lesson/7271292eeb83`（真实教案）。这些运行数据不提交，换机器需重新生成。
+可复查的任务目录：`data/tasks/413dc81c848244fb92c851bb6396ca81`（PPT v001）、`data/pipeline/lesson/7271292eeb83`（真实教案）、`data/pipeline/pdf/5e303d75e775`（扫描版 OCR）。这些运行数据不提交，换机器需重新生成。
 
 ## 8. 已知限制
 
