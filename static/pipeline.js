@@ -176,6 +176,20 @@
     $("#pdfChapters").innerHTML = `<div class="notice" style="grid-column:1/-1">${esc(message)}</div>`;
   }
 
+  function pageRange(pages){
+    const nums = [...(pages || [])].sort((a, b) => a - b);
+    if(!nums.length) return "";
+    const parts = [];
+    let start = nums[0], prev = nums[0];
+    for(const n of nums.slice(1)){
+      if(n === prev + 1){ prev = n; continue; }
+      parts.push(start === prev ? String(start) : `${start}–${prev}`);
+      start = prev = n;
+    }
+    parts.push(start === prev ? String(start) : `${start}–${prev}`);
+    return parts.join("、");
+  }
+
   function renderPdfJob(job){
     const box = $("#pdfResult");
     box.hidden = false;
@@ -191,11 +205,14 @@
       $("#pdfChapters").innerHTML = '<div class="empty-ref" style="grid-column:1/-1">正在解析…</div>';
       return;
     }
-    $("#pdfResultMeta").textContent = `${job.result?.pages ?? ""} 页 · ${job.result?.images ?? 0} 张图片 · 共 ${job.chapters.length} 章 · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
+    const ocr = job.result?.ocr
+      ? ` · 本机 OCR ${job.result.ocrPages ?? ""} 页${job.result.ocrConfidence ? "（均值 " + job.result.ocrConfidence + "）" : ""}`
+      : "";
+    $("#pdfResultMeta").textContent = `${job.result?.pages ?? ""} 页 · ${job.result?.images ?? 0} 张图片 · 共 ${job.chapters.length} 章${ocr} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
     $("#pdfChapters").innerHTML = job.chapters.map(chapter => `
       <article class="result-card">
         <h3>${esc(chapter.title)}</h3>
-        <div class="rc-meta">第 ${chapter.pages.join(", ")} 页 · ${chapter.chars} 字符 · ${chapter.imageCount} 张图</div>
+        <div class="rc-meta">第 ${pageRange(chapter.pages)} 页 · ${chapter.chars} 字符 · ${chapter.imageCount} 张图</div>
         <pre data-preview="${chapter.index}" hidden></pre>
         <div class="bar-actions">
           <button class="btn btn-sm" data-pdf-preview="${chapter.index}">预览 MD</button>

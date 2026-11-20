@@ -7,11 +7,13 @@ real run documented in README.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import pymupdf
 
@@ -63,6 +65,16 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertNotIn('⋯', body)
         self.assertIn('1.1 背景', body)
 
+    def test_repeated_running_header_is_not_a_new_chapter(self):
+        title = '第6章 贝叶斯和SVM分类算法的安全应用'
+        texts = [f'{title}\n第一页正文。\n', f'{title}\n第二页正文。\n']
+        chapters = pdf2md.split_chapters(texts)
+        self.assertEqual(len(chapters), 1)
+        markdown = pdf2md.render_chapter(chapters[0], {})
+        self.assertEqual(markdown.count(title), 1)
+        self.assertIn('第一页正文', markdown)
+        self.assertIn('第二页正文', markdown)
+
     def test_pdf_stage_extracts_markdown_and_artifact(self):
         job = self._pdf_job()
         self.assertEqual(job['status'], 'succeeded', job.get('error'))
@@ -84,7 +96,7 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(download.status_code, 200)
         self.assertTrue(download.data.startswith('# 第一章'.encode('utf-8')))
 
-    def test_scanned_pdf_reports_ocr_required(self):
+    def test_scanned_pdf_reports_ocr_required_when_disabled(self):
         scanned = self.tmp / 'scanned.pdf'
         source = pymupdf.open(str(DEMO_PDF))
         pix = source[0].get_pixmap(dpi=90)
@@ -95,16 +107,45 @@ class PipelineIntegrationTests(unittest.TestCase):
         target.close()
         source.close()
 
-        with open(scanned, 'rb') as handle:
-            response = self.client.post('/api/pipeline/pdf/jobs',
-                                        data={'file': (handle, 'scanned.pdf')},
-                                        content_type='multipart/form-data')
-        self.assertEqual(response.status_code, 202)
-        job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}")
+        with mock.patch.dict(os.environ, {'PDF_OCR': '0'}):
+            with open(scanned, 'rb') as handle:
+                response = self.client.post('/api/pipeline/pdf/jobs',
+                                            data={'file': (handle, 'scanned.pdf')},
+                                            content_type='multipart/form-data')
+            self.assertEqual(response.status_code, 202)
+            job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}")
         self.assertEqual(job['status'], 'failed')
         self.assertEqual(job['code'], 'E_OCR_REQUIRED')
-        self.assertIn('MinerU', job['error'])
+        self.assertIn('PDF_OCR=0', job['error'])
         self.assertFalse(self.client.get('/api/pipeline/artifacts?stage=pdf2md').get_json())
+
+    def test_scanned_pdf_uses_local_ocr(self):
+        try:
+            import rapidocr_onnxruntime  # noqa: F401
+        except ImportError:
+            self.skipTest('rapidocr_onnxruntime not installed')
+        scanned = self.tmp / 'scanned_ocr.pdf'
+        source = pymupdf.open(str(DEMO_PDF))
+        pix = source[0].get_pixmap(dpi=150)
+        target = pymupdf.open()
+        page = target.new_page(width=595, height=842)
+        page.insert_image(pymupdf.Rect(0, 0, 595, 842), pixmap=pix)
+        target.save(scanned)
+        target.close()
+        source.close()
+
+        with open(scanned, 'rb') as handle:
+            response = self.client.post('/api/pipeline/pdf/jobs',
+                                        data={'file': (handle, 'scanned_ocr.pdf')},
+                                        content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 202)
+        job = wait_job(self.client, f"/api/pipeline/pdf/jobs/{response.get_json()['id']}", timeout=240)
+        self.assertEqual(job['status'], 'succeeded', job.get('error'))
+        self.assertTrue(job['result']['ocr'])
+        self.assertEqual(job['result']['ocrPages'], 1)
+        text = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/1").get_data(as_text=True)
+        self.assertGreater(len(text), 200)
+        self.assertTrue(any(token in text for token in ('人工智能', '智能', '数据')))
 
     def test_lesson_offline_generation_and_ppt_handoff(self):
         pdf = self._pdf_job()

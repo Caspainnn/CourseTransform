@@ -160,7 +160,8 @@ class PipelineService:
             for chapter in (job.get('chapters') or [])
         ]
         public['log'] = (job.get('log') or [])[-200:]
-        public['result'] = {key: (job.get('result') or {}).get(key) for key in ('pages', 'images')}
+        public['result'] = {key: (job.get('result') or {}).get(key) for key in
+                            ('pages', 'images', 'ocr', 'ocrPages', 'ocrConfidence', 'ocrDpi')}
         return public
 
     # ---- publishing --------------------------------------------------
