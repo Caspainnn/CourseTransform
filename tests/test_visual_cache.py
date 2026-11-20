@@ -38,3 +38,14 @@ def test_broken_vision_catalog_is_not_reused():
     assert not complete_vision([{'number': 1}, 'number', 'role'], items)
     assert not complete_vision([{'number': 1}], items)
     assert complete_vision([{'number': 2}, {'number': 1}], items)
+
+
+def test_style_cluster_keeps_dominant_palette(tmp_path):
+    from PIL import Image
+    from pptnative.native_author import style_cluster
+    job = tmp_path / 'job'
+    (job / 'source-preview').mkdir(parents=True)
+    for number in range(1, 9):
+        color = (27, 59, 136) if number <= 5 else (60, 60, 60)
+        Image.new('RGB', (64, 36), color).save(job / 'source-preview' / f'template_p{number}.png')
+    assert style_cluster(job, list(range(1, 9))) == {1, 2, 3, 4, 5}

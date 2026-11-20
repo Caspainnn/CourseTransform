@@ -10,6 +10,8 @@ import sys
 import threading
 import xml.etree.ElementTree as ET
 
+from PIL import Image
+
 from .models import ROOT, ask, parallel, read, save
 from .native_repair import run_upstream
 
@@ -757,6 +759,43 @@ def visual_catalog(job, version, items):
     return result
 
 
+def preview_histogram(job, number):
+    """Coarse colour histogram of a template page, used to keep one deck look."""
+    path = job / "source-preview" / f"template_p{number}.png"
+    if not path.exists():
+        return None
+    with Image.open(path) as source:
+        image = source.convert("RGB").resize((64, 36))
+    histogram = [0] * 64
+    for red, green, blue in image.getdata():
+        histogram[(red // 64) * 16 + (green // 64) * 4 + (blue // 64)] += 1
+    total = sum(histogram) or 1
+    return [value / total for value in histogram]
+
+
+def style_cluster(job, numbers):
+    """Largest group of source layouts that share the deck's dominant palette.
+
+    Template sets mix unrelated designs; authoring several pages from different
+    colour families produces a deck whose pages do not look alike. Pick the
+    biggest visually coherent cluster instead of trusting body capacity alone.
+    """
+    histograms = {n: h for n in numbers if (h := preview_histogram(job, n)) is not None}
+    if len(histograms) < 4:
+        return set(numbers)
+
+    def similarity(a, b):
+        return sum(min(x, y) for x, y in zip(a, b))
+
+    cluster = set()
+    for reference, reference_hist in histograms.items():
+        group = {n for n, h in histograms.items() if similarity(reference_hist, h) >= .6}
+        if len(group) > len(cluster):
+            cluster = group
+    # Never starve routing: a small or atypical template keeps every eligible page.
+    return cluster if len(cluster) >= max(4, len(numbers) * .4) else set(numbers)
+
+
 def layout_catalog(items):
     """Compact text-slot evidence for the layout matcher.
 
@@ -809,6 +848,12 @@ def prepare(job, version, contract, source, parent=None):
     allowed = {p["number"] for p in vision if p.get("text_fill_compatible") is True and p.get("capacity") != "low"}
     if not parent and not allowed:
         raise ValueError("Qwen found no compatible native text layouts; cannot silently recompose text pages")
+    if not parent:
+        # Keep every text page inside the template's dominant colour family; a
+        # capacity-only pick can land on an unrelated dark business page.
+        consistent = allowed & style_cluster(job, sorted(allowed))
+        if consistent:
+            allowed = consistent
     def heading_fits(number, title):
         return bool(title_slots((directory / f"slide_{number:02}.svg").read_text(encoding="utf-8"), title))
     # Text pages can only use a layout whose real heading slot holds the full title;
