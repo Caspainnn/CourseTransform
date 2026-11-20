@@ -1365,20 +1365,18 @@ input[type="range"]::-moz-range-thumb{
           <div class="doc-stage-body">
             <article class="doc-panel">
               <div class="doc-toolbar">
-                <div class="seg" role="tablist" aria-label="视图切换">
-                  <button class="seg-btn on" type="button" role="tab" aria-selected="true" data-lesson-view="render">教案预览</button>
-                  <button class="seg-btn" type="button" role="tab" aria-selected="false" data-lesson-view="text">纯文本</button>
-                </div>
+                <span class="doc-status">Word 预览</span>
                 <select class="chapter-select" id="lessonDocSelect" aria-label="选择学时" hidden></select>
                 <span class="doc-status" id="lessonDocStatus"></span>
                 <div class="bar-actions doc-actions">
-                  <button class="btn btn-sm" id="lessonDocEdit">编辑 Word</button>
+                  <button class="btn btn-sm" id="lessonDocEdit">编辑</button>
+                  <button class="btn btn-sm btn-accent" id="lessonDocSave" hidden>保存修改</button>
+                  <button class="btn btn-sm" id="lessonDocCancel" hidden>取消</button>
                   <button class="btn btn-sm" id="lessonDocDownload">下载 DOCX</button>
                   <button class="btn btn-sm btn-accent" id="lessonDocHandoff">送入 PPT</button>
                 </div>
               </div>
-              <div class="doc-view md-body" id="lessonDocRender" role="tabpanel"></div>
-              <pre class="doc-view doc-raw" id="lessonDocText" hidden></pre>
+              <div class="doc-view docx-body" id="lessonDocRender"></div>
             </article>
           </div>
         </section>
@@ -1438,28 +1436,6 @@ input[type="range"]::-moz-range-thumb{
         </div>
         <div class="ap-foot">单用户 · 资料与任务按保留期清理</div>
       </div>
-
-<!-- ==== Lesson DOCX edit modal ==== -->
-<div class="modal" id="docxEditModal" role="dialog" aria-modal="true" aria-labelledby="docxEditTitle">
-  <div class="modal-card">
-    <div class="modal-head">
-      <div><h2 id="docxEditTitle">编辑教案 Word</h2><p id="docxEditHint">修改正文与表格文字，保存后生成新修订，原文件保留</p></div>
-      <button class="icon-btn" id="docxEditClose" aria-label="关闭">
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="docx-edit-list" id="docxEditBlocks"></div>
-    </div>
-    <div class="modal-foot">
-      <span class="picked" id="docxEditCount">0 处修改</span>
-      <div class="bar-actions">
-        <button class="btn btn-sm" id="docxEditCancel" type="button">取消</button>
-        <button class="btn btn-sm btn-accent" id="docxEditSave" type="button">保存修订</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- ==== Knowledge base modal ==== -->
 <div class="modal" id="kbModal" role="dialog" aria-modal="true" aria-labelledby="kbTitle">
@@ -1641,7 +1617,20 @@ input[type="range"]::-moz-range-thumb{
 .docx-block textarea{width:100%;min-height:44px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.6;color:var(--ink);background:#fffdf9;}
 .docx-block textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent-soft-h);}
 .docx-block.changed textarea{border-color:var(--accent-soft-h);background:#fff7f2;}
-#docxEditModal .modal-body{display:block;padding:0;overflow:hidden;}
+.docx-body{padding:0;background:#f1f0ee;max-height:calc(100vh - 245px);overflow:auto;}
+.docx-page{background:#fff;max-width:900px;margin:14px auto;padding:40px;box-shadow:0 1px 3px rgba(0,0,0,.08);font-family:"Microsoft YaHei","PingFang SC","SimSun",serif;font-size:13px;line-height:1.75;color:#222;}
+.docx-p{margin:0 0 .45em;min-height:1em;overflow-wrap:anywhere;}
+.docx-h1{font-size:22px;font-weight:700;text-align:center;margin:.2em 0 .5em;color:#1f4e79;}
+.docx-h2{font-size:16px;font-weight:700;margin:1em 0 .4em;color:#1f4e79;}
+.docx-h3{font-size:13.5px;font-weight:700;margin:.7em 0 .3em;}
+.docx-h4{font-size:12.5px;font-weight:700;margin:.6em 0 .2em;}
+.docx-li{margin-left:1.6em;}
+.docx-table{border-collapse:collapse;width:100%;margin:8px 0;table-layout:fixed;}
+.docx-table td{border:1px solid #9a9a9a;padding:4px 6px;vertical-align:top;font-size:12.5px;}
+.docx-table td .docx-p{margin:0;}
+.docx-img{max-width:100%;height:auto;display:block;margin:6px 0;}
+.docx-body [contenteditable="true"]{background:#fffdf5;outline:1px dashed #d8c9b5;border-radius:2px;}
+.docx-body [contenteditable="true"]:focus{outline:1px solid var(--accent);}
 .notice.danger{background:#fdf6f4;border-color:#efd3c8;color:#8d3a26;}
 .notice.danger svg{stroke:#b4482d;}
 

@@ -305,6 +305,26 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(job['code'], 'E_MINERU_UNAVAILABLE')
         self.assertIn('MinerU', job['error'])
 
+    def test_docx_html_embeds_images_and_tables(self):
+        from docx import Document as Docx
+        from pipeline.docx_html import render_docx_html
+        png = base64.b64decode(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII='
+        )
+        doc = Docx()
+        doc.add_paragraph('含图片的段落')
+        doc.add_picture(io.BytesIO(png))
+        table = doc.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = '表格甲'
+        table.cell(0, 1).text = '表格乙'
+        path = self.tmp / 'image.docx'
+        doc.save(path)
+        html = render_docx_html(path)
+        self.assertIn('<table class="docx-table">', html)
+        self.assertIn('表格甲', html)
+        self.assertIn('<img class="docx-img"', html)
+        self.assertIn('data:image/png;base64,', html)
+
     def test_lesson_offline_generation_and_ppt_handoff(self):
         pdf = self._pdf_job()
         payload = {
@@ -390,6 +410,12 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertTrue(any('课程基本信息' in text for text in texts))
         self.assertTrue(any(text.startswith('第1学时') for text in texts))
         self.assertFalse(any('按模板填充 DOCX 失败' in warning for warning in job.get('warnings') or []))
+
+        html = self.client.get(f"/api/pipeline/lesson/jobs/{job['id']}/docx/{ok['index']}/html").get_data(as_text=True)
+        self.assertIn('<table class="docx-table">', html)
+        self.assertIn('data-block-id="', html)
+        self.assertIn('课程基本信息', html)
+        self.assertNotIn('text-align:center (1)', html)
 
     def test_lesson_from_knowledge_refs_and_handoff_keeps_source(self):
         pdf = self._pdf_job()

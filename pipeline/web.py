@@ -25,6 +25,7 @@ from jiaoan import web as jweb
 from pipeline.artifacts import ARTIFACT_ID, ArtifactStore, now, read_json, sha256_file, write_json
 from pipeline.lesson_jobs import LessonJobManager
 from pipeline import pdf2md
+from pipeline.docx_html import render_docx_html
 
 IMAGE_REF = re.compile(r'!\[[^\]]*\]\((images/[^)\s]+)\)')
 JOB_ID = re.compile(r'^[a-f0-9]{8,32}$')
@@ -733,6 +734,13 @@ def create_blueprint(data_dir):
         if not path:
             raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
         return send_file(path, as_attachment=True, download_name=path.name)
+
+    @bp.get('/lesson/jobs/<ident>/docx/<int:index>/html')
+    def lesson_docx_html(ident, index):
+        path = service.lessons.docx_path(ident, index)
+        if not path:
+            raise Problem('DOCX 不存在或任务未完成', 404, 'E_NOT_FOUND')
+        return render_docx_html(path), 200, {'Content-Type': 'text/html; charset=utf-8'}
 
     @bp.get('/lesson/jobs/<ident>/docx/<int:index>/blocks')
     def lesson_docx_blocks(ident, index):

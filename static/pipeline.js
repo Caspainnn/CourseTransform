@@ -45,7 +45,7 @@
     pdfFile:null, activePdf:null, pdfTimer:null,
     artifacts:[], selectedArtifacts:new Set(),
     textbookFile:null, templates:[], images:[], imageCaptions:{}, knowledgeRefs:[], refRows:[], knowledgeCache:[], refChoice:{artifacts:new Set(), knowledge:new Set()},
-    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, lessonIndex:1, lessonMode:"render", lessonText:"", docxBlocks:null, docxIndex:0, docxDirty:false,
+    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, lessonIndex:1, lessonEditing:false,
     initialized:{pdf:false, word:false}
   };
 
@@ -1043,37 +1043,87 @@
     const item = lessonFile(index);
     if (!item) return;
     state.lessonIndex = item.index;
+    state.lessonEditing = false;
     const select = $("#lessonDocSelect");
     if (select) select.value = String(item.index);
     $("#lessonDocStatus").textContent = `${item.revision > 1 ? "修订 r" + item.revision + " · " : ""}${badge(item.status).replace(/<[^>]+>/g, "")}`;
-    const response = await fetch(item.previewUrl, {cache:"no-store"});
-    if (!response.ok) throw Error("读取教案内容失败");
-    state.lessonText = await response.text();
-    setLessonMode(state.lessonMode, true);
+    const response = await fetch(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${item.index}/html`, {cache:"no-store"});
+    if (!response.ok) throw Error("读取 Word 内容失败");
+    $("#lessonDocRender").innerHTML = await response.text();
+    $("#lessonDocRender").querySelectorAll("img").forEach(img=>img.setAttribute("contenteditable","false"));
+    $("#lessonDocEdit").hidden = false;
+    $("#lessonDocSave").hidden = true;
+    $("#lessonDocCancel").hidden = true;
+    $("#lessonDocEdit").onclick = ()=>enterLessonEdit();
     $("#lessonDocDownload").onclick = ()=>{ window.location.href = item.url; };
-    $("#lessonDocEdit").onclick = ()=>openDocxEditor(item.index).catch(error=>toast(error.message));
     $("#lessonDocHandoff").onclick = (event)=>handoffLesson(item.index, event.currentTarget);
     $("#lessonDocHandoff").disabled = !["ok","ok_with_warnings"].includes(item.status);
     $("#lessonDocHandoff").title = $("#lessonDocHandoff").disabled ? "质检未通过，不能送入 PPT" : "";
   }
-  function setLessonMode(mode, silent){
-    state.lessonMode = mode;
-    document.querySelectorAll("[data-lesson-view]").forEach(btn=>{
-      const active = btn.dataset.lessonView === mode;
-      btn.classList.toggle("on", active);
-      btn.setAttribute("aria-selected", active ? "true" : "false");
-    });
-    $("#lessonDocRender").hidden = mode !== "render";
-    $("#lessonDocText").hidden = mode !== "text";
-    if (mode === "render"){
-      $("#lessonDocRender").innerHTML = window.PipelineMD
-        ? window.PipelineMD.render(state.lessonText, {jobId: "", index: 0})
-        : `<pre>${esc(state.lessonText)}</pre>`;
-    } else {
-      $("#lessonDocText").textContent = state.lessonText;
-    }
-    if (!silent) $("#lessonDocRender").scrollTop = 0;
+  function lessonBlocks(){
+    return [...document.querySelectorAll("#lessonDocRender [data-block-id]")];
   }
+  function lessonChanges(){
+    const changes = [];
+    lessonBlocks().forEach(block=>{
+      const text = block.innerText.replace(/\r/g, "");
+      if (text !== block.dataset.original){
+        changes.push({id: block.dataset.blockId, text});
+      }
+    });
+    return changes;
+  }
+  function refreshLessonCount(){
+    const count = lessonChanges().length;
+    $("#lessonDocStatus").textContent = count ? `编辑中 · ${count} 处修改` : "编辑中";
+    $("#lessonDocSave").disabled = !count;
+    lessonBlocks().forEach(block=>block.classList.toggle("changed", block.innerText.replace(/\r/g, "") !== block.dataset.original));
+  }
+  function enterLessonEdit(){
+    if (!state.activeLesson) return;
+    state.lessonEditing = true;
+    lessonBlocks().forEach(block=>{
+      block.dataset.original = block.innerText.replace(/\r/g, "");
+      block.setAttribute("contenteditable", "true");
+    });
+    $("#lessonDocEdit").hidden = true;
+    $("#lessonDocSave").hidden = false;
+    $("#lessonDocCancel").hidden = false;
+    refreshLessonCount();
+    const first = lessonBlocks().find(block=>block.innerText.trim());
+    if (first) first.focus();
+  }
+  function exitLessonEdit(){
+    lessonBlocks().forEach(block=>block.removeAttribute("contenteditable"));
+    state.lessonEditing = false;
+    $("#lessonDocEdit").hidden = false;
+    $("#lessonDocSave").hidden = true;
+    $("#lessonDocCancel").hidden = true;
+  }
+  $("#lessonDocRender").addEventListener("input", ()=>{ if (state.lessonEditing) refreshLessonCount(); });
+  $("#lessonDocCancel").addEventListener("click", ()=>{
+    if (lessonChanges().length && !confirm("放弃未保存的修改？")) return;
+    selectLessonDocx(state.lessonIndex, true).catch(error=>toast(error.message));
+  });
+  $("#lessonDocSave").addEventListener("click", async ()=>{
+    const changes = lessonChanges();
+    if (!changes.length){ toast("没有修改"); return; }
+    const button = $("#lessonDocSave");
+    button.disabled = true;
+    button.textContent = "保存中…";
+    try {
+      const result = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${state.lessonIndex}/edit`, "POST", {blocks: changes});
+      state.activeLesson = result.job;
+      renderLessonJob(result.job);
+      await selectLessonDocx(state.lessonIndex, true);
+      toast(`已保存修订 r${result.edit.revision}（${result.edit.changed} 处）`);
+    } catch (error) {
+      toast(error.message);
+      button.disabled = false;
+    } finally {
+      button.textContent = "保存修改";
+    }
+  });
   async function showLessonStage(job){
     state.activeLesson = job;
     const files = job.docx_files || [];
@@ -1091,90 +1141,17 @@
     await selectLessonDocx(index, true);
   }
   $("#lessonBack").addEventListener("click", ()=>{
+    exitLessonEdit();
     $("#lessonStage").hidden = true;
     $("#wordPageHead").hidden = false;
     $("#wordStageGrid").hidden = false;
   });
   $("#lessonDocSelect").addEventListener("change", (event)=>{
+    if (state.lessonEditing && lessonChanges().length && !confirm("切换学时会放弃未保存的修改，继续？")) {
+      event.currentTarget.value = String(state.lessonIndex);
+      return;
+    }
     selectLessonDocx(Number(event.currentTarget.value)).catch(error=>toast(error.message));
-  });
-  document.querySelectorAll("[data-lesson-view]").forEach(btn=>{
-    btn.addEventListener("click", ()=>setLessonMode(btn.dataset.lessonView));
-  });
-
-  /* ---------- lesson DOCX editor ---------- */
-  const docxModal = $("#docxEditModal");
-  function docxChanges(){
-    const changed = [];
-    document.querySelectorAll("#docxEditBlocks textarea").forEach(area=>{
-      if (area.value !== area.dataset.original){
-        changed.push({id: area.dataset.blockId, text: area.value});
-      }
-    });
-    return changed;
-  }
-  function refreshDocxCount(){
-    const count = docxChanges().length;
-    state.docxDirty = count > 0;
-    $("#docxEditCount").textContent = `${count} 处修改`;
-    document.querySelectorAll("#docxEditBlocks .docx-block").forEach(block=>{
-      const area = block.querySelector("textarea");
-      block.classList.toggle("changed", area.value !== area.dataset.original);
-    });
-    $("#docxEditSave").disabled = !count;
-  }
-  async function openDocxEditor(index){
-    if (!state.activeLesson) return;
-    const data = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${index}/blocks`);
-    state.docxIndex = index;
-    state.docxDirty = false;
-    const box = $("#docxEditBlocks");
-    box.innerHTML = "";
-    const blocks = (data.blocks || []).filter(block => String(block.text || "").trim());
-    blocks.forEach((block, position)=>{
-      const wrap = document.createElement("div");
-      wrap.className = "docx-block";
-      const label = document.createElement("label");
-      label.textContent = block.kind === "cell" ? `表格文字 ${position + 1}` : `段落 ${position + 1}`;
-      const area = document.createElement("textarea");
-      area.value = block.text;
-      area.dataset.blockId = block.id;
-      area.dataset.original = block.text;
-      area.rows = Math.min(6, Math.max(1, Math.ceil(block.text.length / 52)));
-      area.addEventListener("input", refreshDocxCount);
-      wrap.append(label, area);
-      box.append(wrap);
-    });
-    $("#docxEditTitle").textContent = `编辑教案 Word · ${data.title}`;
-    $("#docxEditHint").textContent = `共 ${blocks.length} 个可编辑段落；保存后生成新修订，原文件保留`;
-    refreshDocxCount();
-    docxModal.classList.add("open");
-    setTimeout(()=>{ const first = box.querySelector("textarea"); if (first) first.focus(); }, 80);
-  }
-  function closeDocxEditor(force){
-    if (!force && state.docxDirty && !confirm("有未保存的修改，确定关闭？")) return;
-    docxModal.classList.remove("open");
-    state.docxDirty = false;
-  }
-  $("#docxEditClose").addEventListener("click", ()=>closeDocxEditor(false));
-  $("#docxEditCancel").addEventListener("click", ()=>closeDocxEditor(false));
-  docxModal.addEventListener("click", (event)=>{ if (event.target === docxModal) closeDocxEditor(false); });
-  $("#docxEditSave").addEventListener("click", async ()=>{
-    const changes = docxChanges();
-    if (!changes.length){ toast("没有修改"); return; }
-    const button = $("#docxEditSave");
-    button.disabled = true;
-    button.textContent = "保存中…";
-    try {
-      const result = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/docx/${state.docxIndex}/edit`, "POST", {blocks: changes});
-      state.activeLesson = result.job;
-      state.docxDirty = false;
-      closeDocxEditor(true);
-      renderLessonJob(result.job);
-      if (!$("#lessonStage").hidden) await showLessonStage(result.job);
-      toast(`已保存修订 r${result.edit.revision}（${result.edit.changed} 处）`);
-    } catch (error) { toast(error.message); }
-    finally { button.disabled = false; button.textContent = "保存修订"; }
   });
 
   /* ================= init ================= */

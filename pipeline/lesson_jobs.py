@@ -14,6 +14,7 @@ import uuid
 from pathlib import Path
 
 from documents import Problem
+from pipeline.docx_html import iter_blocks
 from jiaoan import web as jweb
 from jiaoan.utils import safe_name
 
@@ -305,25 +306,10 @@ class LessonJobManager:
         from docx import Document
         doc = Document(str(path))
         blocks = []
-        seen_cells = set()
-
-        def add_para(paragraph, prefix, kind):
-            text = paragraph.text if paragraph.text is not None else ''
-            blocks.append({'id': f'{prefix}{len(blocks) + 1:04d}', 'kind': kind,
+        for ident, paragraph, kind in iter_blocks(doc):
+            blocks.append({'id': ident, 'kind': kind,
                            'style': paragraph.style.name if paragraph.style else '',
-                           'text': text})
-
-        for paragraph in doc.paragraphs:
-            add_para(paragraph, 'p', 'paragraph')
-        for t_index, table in enumerate(doc.tables):
-            for r_index, row in enumerate(table.rows):
-                for c_index, cell in enumerate(row.cells):
-                    key = id(cell._tc)
-                    if key in seen_cells:
-                        continue
-                    seen_cells.add(key)
-                    for p_index, paragraph in enumerate(cell.paragraphs):
-                        add_para(paragraph, f't{t_index}r{r_index}c{c_index}p', 'cell')
+                           'text': paragraph.text or ''})
         return {'title': path.stem, 'path': str(path), 'blocks': blocks}
 
     def edit_docx(self, ident, index, edits):
@@ -335,19 +321,7 @@ class LessonJobManager:
             raise Problem('没有需要保存的修改', 400, 'E_INVALID_INPUT')
         from docx import Document
         doc = Document(str(path))
-        targets = {}
-        for paragraph in doc.paragraphs:
-            targets[f'p{len(targets) + 1:04d}'] = paragraph
-        seen_cells = set()
-        for t_index, table in enumerate(doc.tables):
-            for r_index, row in enumerate(table.rows):
-                for c_index, cell in enumerate(row.cells):
-                    key = id(cell._tc)
-                    if key in seen_cells:
-                        continue
-                    seen_cells.add(key)
-                    for p_index, paragraph in enumerate(cell.paragraphs):
-                        targets[f't{t_index}r{r_index}c{c_index}p{len(targets) + 1:04d}'] = paragraph
+        targets = {ident: paragraph for ident, paragraph, _kind in iter_blocks(doc)}
         changed = 0
         for item in edits:
             if not isinstance(item, dict):

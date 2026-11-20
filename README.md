@@ -119,7 +119,7 @@ MINERU_COMMAND=E://YourProject//.mineru//Scripts//mineru-kit.exe
 1. 在“基础信息填写”里填学科、年级、课时、课型、学时数等简报；
 2. 在“教材与模板”里点“从最近产物选择”选 PDF→MD 产物或知识库 Markdown 教材，点“本地上传”补教案模板 `.docx` 与配图；
 3. 模型固定使用服务端 `.env` 的默认配置，页面不展示接口与密钥；
-4. 生成过程展示 5 步进度动画；完成后按学时下载 DOCX、查看中间稿与质检/验收结果，并可“编辑”Word 正文，保存为新修订（原文件保留）。
+4. 生成过程展示 5 步进度动画；完成后按学时下载 DOCX、查看中间稿与质检/验收结果，并可在 Word 渲染预览中直接改字，保存为新修订（原文件保留）；复杂排版请下载后编辑。
 
 点击左侧栏底部“本机用户”，先弹出账户浮层（知识库份数、模型状态），再选择“用户信息 / 知识库 / 模型管理”打开对应详情弹窗；模型编辑暂为占位。
 
@@ -160,7 +160,7 @@ data/
 ## 7. 测试与本次实测
 
 ```powershell
-python -m pytest -q          # 90 passed, 1 skipped（2026-11-20）
+python -m pytest -q          # 91 passed, 1 skipped（2026-11-20）
 python scripts/doctor.py            # mineru_cli 为可选检查
 node --check static/workbench.js
 node --check static/pipeline.js
@@ -199,7 +199,7 @@ jiaoan/                 教案引擎（来自“模板-->教案”提交包，�
 pptnative/ webapp/      PPT 原生制作、版本、锁（来自 stage3）
 static/                 工作台 HTML + 原生 JS（workbench.js 基线，pipeline.js 新页面）
 examples/               合成演示教材 PDF、教材 md、模板、图
-tests/                  90 项测试（含 13 项阶段集成测试）
+tests/                  91 项测试（含 14 项阶段集成测试）
 docs/                   原 stage3 文档 + docs/INTEGRATION.md
 scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 ```
