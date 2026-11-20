@@ -1,0 +1,2225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知序工作台 · 教材与教案一键成稿</title>
+<style>
+/* ==== Design tokens ==== */
+:root{
+  --paper:#f7f5f1;
+  --card:#ffffff;
+  --ink:#1d1b18;
+  --ink-2:#4a4741;
+  --ink-3:#756f66;
+  --line:#e7e2d9;
+  --line-strong:#d8d2c6;
+  --accent:#b85c38;
+  --accent-dark:#9a4827;
+  --accent-soft:#f6ece6;
+  --sage:#5c7264;
+  --sage-soft:#eef2ee;
+  --shadow:0 1px 2px rgba(29,27,24,.04), 0 8px 24px rgba(29,27,24,.05);
+  --radius:14px;
+  --radius-sm:10px;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  --serif:Georgia,"Times New Roman","Songti SC",serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;font-size:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;}
+a{color:inherit;text-decoration:none;}
+h1,h2,h3,h4,p{margin:0;}
+ul{margin:0;padding:0;list-style:none;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* ==== App shell ==== */
+.app{display:flex;min-height:100vh;}
+
+/* ==== Sidebar ==== */
+.sidebar{
+  width:248px;flex:0 0 248px;
+  border-right:1px solid var(--line);
+  background:#fbfaf7;
+  padding:22px 18px 18px;
+  display:flex;flex-direction:column;gap:22px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 4px 0;}
+.brand-mark{
+  width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(150deg,#2a2722,#4a453c);
+  display:grid;place-items:center;flex:0 0 32px;
+}
+.brand-mark svg{width:17px;height:17px;stroke:#f7f5f1;}
+.brand-name{font-size:15px;font-weight:600;letter-spacing:.02em;}
+.brand-sub{font-size:11px;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono);}
+
+.nav-group-label{
+  font-size:11px;letter-spacing:.12em;color:var(--ink-3);
+  text-transform:uppercase;padding:0 8px;margin-bottom:8px;font-family:var(--mono);
+}
+.nav{display:flex;flex-direction:column;gap:3px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  width:100%;text-align:left;border:0;background:transparent;
+  padding:10px 10px;border-radius:var(--radius-sm);
+  color:var(--ink-2);transition:background .16s ease,color .16s ease;
+  line-height:1.35;
+}
+.nav-item:hover{background:#f1eee7;color:var(--ink);}
+.nav-item svg{width:16px;height:16px;flex:0 0 16px;stroke:currentColor;}
+.nav-item.active{background:#fff;box-shadow:var(--shadow);color:var(--ink);font-weight:600;}
+.nav-item.active svg{stroke:var(--accent);}
+.nav-text{flex:1;min-width:0;}
+.nav-title{display:block;font-size:13px;}
+.nav-desc{display:block;font-size:11px;color:var(--ink-3);margin-top:1px;}
+.nav-item.active .nav-desc{color:var(--accent);}
+.badge-wip{
+  font-size:10px;padding:1px 6px;border-radius:20px;
+  background:#f1eee7;color:var(--ink-3);border:1px solid var(--line-strong);
+  letter-spacing:.03em;white-space:nowrap;
+}
+.sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px;}
+.side-note{
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:12px;background:#fff;
+}
+.side-note h4{font-size:12px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.side-note h4 svg{width:13px;height:13px;stroke:var(--accent);}
+.side-note p{font-size:11.5px;color:var(--ink-3);line-height:1.55;}
+.storage-line{margin-top:10px;height:4px;border-radius:4px;background:#efece5;overflow:hidden;}
+.storage-line i{display:block;height:100%;width:34%;background:var(--sage);}
+.user-chip{display:flex;align-items:center;gap:9px;padding:4px;}
+.avatar{
+  width:30px;height:30px;border-radius:50%;flex:0 0 30px;
+  background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-size:12px;font-weight:600;
+  border:1px solid #eadcd3;
+}
+.user-chip b{font-size:12.5px;font-weight:600;display:block;line-height:1.2;}
+.user-chip span{font-size:11px;color:var(--ink-3);}
+
+/* ==== Main column ==== */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:16px 40px;border-bottom:1px solid var(--line);
+  background:rgba(247,245,241,.85);backdrop-filter:blur(8px);
+  position:sticky;top:0;z-index:20;
+}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3);}
+.crumbs b{color:var(--ink-2);font-weight:500;}
+.crumbs .sep{color:var(--line-strong);}
+.topbar-right{display:flex;align-items:center;gap:14px;}
+.db-status{
+  display:flex;align-items:center;gap:7px;
+  font-size:11.5px;color:var(--sage);
+  border:1px solid #dbe4dc;background:var(--sage-soft);
+  padding:5px 11px;border-radius:20px;font-family:var(--mono);
+}
+.dot{width:6px;height:6px;border-radius:50%;background:#5f8a70;box-shadow:0 0 0 3px rgba(95,138,112,.16);}
+.icon-btn{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line);
+  background:#fff;display:grid;place-items:center;color:var(--ink-2);
+}
+.icon-btn:hover{border-color:var(--line-strong);color:var(--ink);}
+.icon-btn svg{width:15px;height:15px;stroke:currentColor;}
+
+.content{padding:32px 40px 56px;max-width:1240px;width:100%;}
+
+/* ==== Page head ==== */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:26px;flex-wrap:wrap;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}
+.page-head h1{font-size:28px;line-height:1.25;letter-spacing:-.01em;font-weight:600;}
+.page-head h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+.page-head p{color:var(--ink-3);margin-top:8px;max-width:56ch;font-size:13px;}
+.head-actions{display:flex;gap:10px;align-items:center;}
+
+/* ==== Buttons ==== */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid var(--line-strong);background:#fff;color:var(--ink);
+  padding:9px 16px;border-radius:9px;font-size:13px;font-weight:500;
+  transition:all .16s ease;white-space:nowrap;
+}
+.btn svg{width:14px;height:14px;stroke:currentColor;}
+.btn:hover{border-color:#c4bcae;background:#fdfcfa;}
+.btn-primary{background:var(--ink);border-color:var(--ink);color:#fbfaf7;}
+.btn-primary:hover{background:#312d27;border-color:#312d27;}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-accent:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--ink-3);}
+.btn-ghost:hover{background:#f1eee7;color:var(--ink);}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:8px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn[disabled]:hover{background:#fff;}
+
+/* ==== Stepper ==== */
+.stepper{
+  display:flex;align-items:center;gap:0;
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 20px;box-shadow:var(--shadow);margin-bottom:22px;
+}
+.step{
+  display:flex;align-items:center;gap:11px;flex:1;min-width:0;
+  background:none;border:0;padding:4px;text-align:left;color:var(--ink-3);
+}
+.step-num{
+  width:26px;height:26px;border-radius:50%;flex:0 0 26px;
+  display:grid;place-items:center;font-family:var(--mono);font-size:11.5px;
+  border:1px solid var(--line-strong);background:#fbfaf7;color:var(--ink-3);
+  transition:all .2s ease;
+}
+.step-label{font-size:12.5px;font-weight:500;line-height:1.25;display:block;white-space:nowrap;}
+.step-hint{font-size:11px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.step.active{color:var(--ink);}
+.step.active .step-num{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft);}
+.step.active .step-hint{color:var(--accent);}
+.step.done .step-num{background:var(--sage-soft);border-color:#c9d8ce;color:var(--sage);}
+.step.done{color:var(--ink-2);}
+.step:hover .step-num{border-color:var(--accent);}
+.step-line{flex:0 0 28px;height:1px;background:var(--line-strong);margin:0 6px;}
+.step-line.done{background:#c9d8ce;}
+
+/* ==== Panels & cards ==== */
+.panel[hidden]{display:none;}
+.step-panels{animation:fadeUp .28s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.grid-2{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:20px;align-items:start;}
+.rail-col{position:sticky;top:84px;}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:22px;
+}
+.card + .card{margin-top:18px;}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;}
+.card-title{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.card-title svg{width:15px;height:15px;stroke:var(--accent);}
+.card-sub{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+.kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;}
+
+/* ==== Form ==== */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.field.full{grid-column:1/-1;}
+.field label{font-size:12px;font-weight:500;color:var(--ink-2);display:flex;align-items:center;gap:6px;}
+.field label .req{color:var(--accent);}
+.field .hint{font-size:11px;color:var(--ink-3);}
+.control{
+  border:1px solid var(--line-strong);background:#fdfcfa;border-radius:9px;
+  padding:9px 11px;font-size:13px;width:100%;transition:border-color .15s,box-shadow .15s;
+}
+.control:hover{border-color:#c9c2b5;}
+.control:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,92,56,.1);background:#fff;}
+textarea.control{resize:vertical;min-height:76px;line-height:1.6;}
+select.control{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23837d73' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px;}
+.inline-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* page count control */
+.count-row{display:flex;align-items:center;gap:12px;}
+.count-input{width:74px;text-align:center;font-family:var(--mono);font-weight:600;}
+input[type="range"]{
+  -webkit-appearance:none;appearance:none;height:4px;border-radius:4px;
+  background:linear-gradient(90deg,var(--accent) 0%,var(--accent) 45%,#e7e2d9 45%,#e7e2d9 100%);
+  flex:1;outline-offset:6px;
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:#fff;border:2.5px solid var(--accent);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+input[type="range"]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:#fff;border:2.5px solid var(--accent);cursor:pointer;
+}
+.preset-row{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap;}
+.chip-btn{
+  border:1px solid var(--line);background:#fdfcfa;color:var(--ink-2);
+  padding:3px 10px;border-radius:20px;font-size:11.5px;font-family:var(--mono);
+}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent);}
+.chip-btn.on{background:var(--accent-soft);border-color:#e3c9ba;color:var(--accent-dark);}
+
+/* style picker */
+.style-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.style-opt{
+  position:relative;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:8px;text-align:left;
+  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,background .15s ease;
+}
+.style-opt:hover{border-color:#c9c2b5;transform:translateY(-1px);}
+.style-opt.on{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px rgba(184,92,56,.09);}
+.style-opt.on::after{
+  content:"✓";position:absolute;top:4px;right:6px;font-size:10px;
+  width:15px;height:15px;border-radius:50%;background:var(--accent);color:#fff;
+  display:grid;place-items:center;line-height:1;
+}
+.style-thumb{
+  height:50px;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;
+  gap:4px;padding:9px 10px;border:1px solid rgba(0,0,0,.05);margin-bottom:7px;
+}
+.st-a{background:#fbf9f4;} .st-b{background:#fdf0e6;} .st-c{background:#eef1f5;} .st-d{background:#1b1b1b;}
+.style-thumb i{display:block;height:3px;border-radius:2px;background:rgba(0,0,0,.28);}
+.style-thumb i.t{height:5px;width:62%;background:rgba(0,0,0,.5);}
+.style-thumb i.s{width:80%;opacity:.6;}
+.style-thumb i.x{width:44%;opacity:.4;}
+.st-b i{background:#a8522d;} .st-b i.t{background:#7d3a1e;}
+.st-c i{background:#3b5273;} .st-c i.t{background:#22334a;}
+.st-d i{background:#8e8e8e;} .st-d i.t{background:#f0f0f0;}
+.style-name{font-size:12px;font-weight:600;line-height:1.3;}
+.style-desc{font-size:10.5px;color:var(--ink-3);line-height:1.4;}
+
+/* ==== Right rail: references ==== */
+.ref-list{display:flex;flex-direction:column;gap:8px;}
+.ref-item{
+  display:flex;gap:10px;align-items:flex-start;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:10px 11px;
+}
+.ref-icon{
+  width:28px;height:34px;flex:0 0 28px;border-radius:4px;
+  background:#fff;border:1px solid var(--line-strong);
+  display:grid;place-items:center;color:var(--accent);position:relative;
+}
+.ref-icon::before{content:"";position:absolute;inset:0;border-radius:4px;background:linear-gradient(180deg,rgba(184,92,56,.06),transparent);}
+.ref-icon svg{width:14px;height:14px;stroke:currentColor;position:relative;}
+.ref-body{flex:1;min-width:0;}
+.ref-title{font-size:12.5px;font-weight:500;line-height:1.4;}
+.ref-meta{font-size:10.5px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;font-family:var(--mono);}
+.tag{
+  display:inline-flex;align-items:center;font-size:10px;padding:0 6px;
+  border-radius:4px;line-height:17px;letter-spacing:.02em;
+}
+.tag-jiaoan{background:var(--accent-soft);color:var(--accent-dark);}
+.tag-jiaocai{background:var(--sage-soft);color:#46604f;}
+.tag-local{background:#f1eee7;color:#6f695f;}
+.ref-x{
+  border:0;background:transparent;color:var(--ink-3);padding:2px;border-radius:4px;
+  display:grid;place-items:center;flex:0 0 auto;
+}
+.ref-x:hover{background:#f1eee7;color:var(--accent);}
+.ref-x svg{width:12px;height:12px;stroke:currentColor;}
+.empty-ref{
+  border:1px dashed var(--line-strong);border-radius:var(--radius-sm);
+  padding:18px 14px;text-align:center;color:var(--ink-3);font-size:12px;background:#fdfcfa;
+}
+.empty-ref svg{width:22px;height:22px;stroke:var(--line-strong);margin-bottom:6px;}
+
+/* ==== Reference actions (knowledge base / local upload) ==== */
+.ref-actions{
+  display:grid;grid-template-columns:1fr 1fr;
+  border:1px solid var(--line-strong);border-radius:9px;overflow:hidden;
+  margin-top:12px;background:#fff;
+}
+.ref-actions .btn{
+  border:0;border-radius:0;background:#fff;padding:9px 8px;font-size:12.5px;
+  justify-content:center;gap:6px;min-width:0;
+}
+.ref-actions .btn + .btn{border-left:1px solid var(--line);}
+.ref-actions .btn:hover{background:#fdfaf7;}
+.ref-actions .btn svg{width:13px;height:13px;}
+
+/* ==== Style lock (when template uploaded) ==== */
+.style-picker.locked .style-opt{opacity:.45;filter:grayscale(1);cursor:not-allowed;background:#faf8f4;}
+.style-picker.locked .style-opt:hover{transform:none;border-color:var(--line);box-shadow:none;}
+.style-picker.locked .style-opt.on::after{background:#a8a29a;}
+.lock-hint{
+  display:flex;gap:7px;align-items:flex-start;margin-top:9px;
+  font-size:11.5px;color:#8a6d3b;background:#fbf6e9;
+  border:1px solid #f0e5cc;border-radius:8px;padding:8px 10px;line-height:1.5;
+}
+.lock-hint[hidden]{display:none;}
+.lock-hint svg{width:12px;height:12px;flex:0 0 12px;margin-top:2px;stroke:#b58a3a;}
+
+/* ==== Upload ==== */
+.drop{
+  display:block;cursor:pointer;
+  border:1px dashed var(--line-strong);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:20px 16px;text-align:center;transition:all .15s ease;
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);}
+.drop svg{width:22px;height:22px;stroke:var(--ink-3);margin-bottom:6px;}
+.drop-label{font-size:12.5px;color:var(--ink-2);}
+.drop-label b{color:var(--accent);font-weight:600;}
+.drop-hint{font-size:10.5px;color:var(--ink-3);margin-top:3px;font-family:var(--mono);}
+.drop input{display:none;}
+.tpl-file{
+  display:flex;align-items:center;gap:11px;border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:10px;background:#fff;
+}
+.tpl-thumb{
+  width:46px;height:34px;flex:0 0 46px;border-radius:4px;overflow:hidden;
+  background:linear-gradient(140deg,#2c2723,#5c5348);position:relative;
+  border:1px solid #2c2723;
+}
+.tpl-thumb::after{content:"";position:absolute;left:7px;top:9px;width:18px;height:2px;background:#e8ddc9;box-shadow:0 5px 0 -0.4px rgba(232,221,201,.55);}
+.tpl-meta b{display:block;font-size:12px;font-weight:600;}
+.tpl-meta span{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);}
+.tpl-file .btn{margin-left:auto;}
+.notice{
+  display:flex;gap:8px;align-items:flex-start;font-size:11px;color:var(--ink-3);
+  background:#fdfaf3;border:1px solid #f0e6d2;border-radius:8px;padding:8px 10px;margin-top:10px;line-height:1.5;
+}
+.notice svg{width:12px;height:12px;flex:0 0 12px;margin-top:2px;stroke:#b58a3a;}
+
+/* ==== Footer bar ==== */
+.bar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-top:20px;padding:14px 18px;border-radius:var(--radius);
+  background:rgba(255,255,255,.95);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid var(--line);box-shadow:var(--shadow);
+  flex-wrap:wrap;
+  position:sticky;bottom:12px;z-index:15;
+}
+.bar-summary{font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.bar-summary b{color:var(--ink-2);font-weight:600;}
+.bar-actions{display:flex;gap:10px;align-items:center;}
+
+/* ==== Drafts view ==== */
+.draft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+.draft-card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+.draft-card:hover{transform:translateY(-2px);border-color:#d5cdbf;box-shadow:0 2px 4px rgba(29,27,24,.05),0 16px 34px rgba(29,27,24,.08);}
+.draft-thumb{
+  aspect-ratio:16/9;padding:20px 22px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:center;gap:6px;
+  border-bottom:1px solid var(--line);
+}
+.dt-a{background:linear-gradient(150deg,#fdfbf6,#f4ece1);}
+.dt-b{background:linear-gradient(150deg,#2b2723,#4a423a);border-bottom-color:#2b2723;}
+.dt-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;position:relative;}
+.dt-b .dt-kicker{color:#d8a98b;}
+.dt-title{font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--ink);position:relative;}
+.dt-b .dt-title{color:#f7f3ec;}
+.dt-rule{width:26px;height:2px;background:var(--accent);margin:1px 0 2px;position:relative;}
+.dt-sub{font-size:9.5px;color:var(--ink-3);font-family:var(--mono);position:relative;}
+.dt-b .dt-sub{color:#b6ada0;}
+.dt-num{position:absolute;right:18px;bottom:14px;font-family:var(--mono);font-size:8.5px;color:var(--ink-3);}
+.dt-b .dt-num{color:#9a9186;}
+.dt-deco{position:absolute;border-radius:50%;pointer-events:none;}
+.dt-a .dt-deco{width:48%;aspect-ratio:1;right:-13%;top:-24%;background:radial-gradient(circle at 35% 35%,rgba(184,92,56,.16),rgba(184,92,56,.02) 70%);}
+.dt-b .dt-deco{width:42%;aspect-ratio:1;left:-11%;bottom:-26%;background:radial-gradient(circle at 60% 40%,rgba(216,169,139,.2),rgba(216,169,139,.02) 70%);}
+.draft-body{padding:13px 15px 15px;display:flex;flex-direction:column;gap:6px;flex:1;}
+.draft-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.draft-body h3{font-size:13px;font-weight:600;line-height:1.45;letter-spacing:-.005em;}
+.draft-desc{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.01em;}
+.draft-meta{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);}
+.draft-meta svg{width:10px;height:10px;stroke:var(--ink-3);}
+.draft-actions{display:flex;gap:7px;margin-top:auto;padding-top:11px;border-top:1px dashed var(--line);}
+.draft-actions .btn{flex:1;}
+
+/* 新建任务占位卡 */
+.draft-new{border:1px dashed var(--line-strong);box-shadow:none;background:transparent;}
+.draft-new:hover{transform:none;border-color:var(--accent);background:#fdfaf7;box-shadow:none;}
+.draft-new-inner{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  border:0;background:transparent;padding:34px 22px;width:100%;border-radius:var(--radius);
+  color:var(--ink-3);text-align:center;
+}
+.dn-plus{
+  width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid var(--line-strong);
+  display:grid;place-items:center;color:var(--accent);transition:all .16s ease;
+}
+.draft-new:hover .dn-plus{border-color:var(--accent);background:var(--accent);color:#fff;}
+.dn-plus svg{width:16px;height:16px;stroke:currentColor;}
+.draft-new b{font-size:13px;font-weight:600;color:var(--ink);}
+.draft-new-inner span:last-child{font-size:10.5px;line-height:1.55;max-width:20ch;}
+.draft-note{
+  margin-top:18px;display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:11.5px;color:var(--ink-3);font-family:var(--mono);
+}
+.draft-note svg{width:12px;height:12px;stroke:var(--line-strong);}
+
+/* ==== Placeholder for wip features ==== */
+.wip{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:64px 32px;text-align:center;
+}
+.wip svg{width:88px;height:88px;margin-bottom:18px;}
+.wip h2{font-size:19px;font-weight:600;}
+.wip p{font-size:13px;color:var(--ink-3);margin-top:8px;max-width:44ch;margin-inline:auto;}
+.wip .btn{margin-top:20px;}
+
+/* ==== Outline ==== */
+.outline-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start;}
+.outline-list{display:flex;flex-direction:column;gap:10px;}
+.slide-card{
+  display:flex;gap:13px;background:#fff;border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:13px 14px;box-shadow:0 1px 2px rgba(29,27,24,.03);
+  transition:border-color .15s,box-shadow .15s;
+}
+.slide-card:hover{border-color:#d3cbbc;}
+.slide-card .idx{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  width:22px;flex:0 0 22px;padding-top:3px;text-align:right;
+}
+.slide-main{flex:1;min-width:0;}
+.slide-title-input{
+  border:0;border-bottom:1px solid transparent;background:transparent;
+  font-size:13.5px;font-weight:600;width:100%;padding:2px 0 4px;border-radius:0;
+}
+.slide-title-input:focus{outline:none;border-bottom-color:var(--accent);}
+.points{display:flex;flex-direction:column;gap:4px;margin-top:5px;}
+.point{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--ink-2);}
+.point::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--line-strong);margin-top:8px;flex:0 0 4px;}
+.point span{flex:1;}
+.slide-tools{display:flex;gap:2px;flex:0 0 auto;align-items:flex-start;}
+.mini-btn{
+  border:1px solid transparent;background:transparent;color:var(--ink-3);
+  width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+}
+.mini-btn:hover{background:#f4f1ea;color:var(--ink);border-color:var(--line);}
+.mini-btn svg{width:13px;height:13px;stroke:currentColor;}
+.add-slide{
+  border:1px dashed var(--line-strong);background:transparent;border-radius:var(--radius-sm);
+  padding:11px;color:var(--ink-3);font-size:12.5px;width:100%;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.add-slide:hover{border-color:var(--accent);color:var(--accent);background:#fdfaf7;}
+.add-slide svg{width:14px;height:14px;stroke:currentColor;}
+
+.rail-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;}
+.rail-card + .rail-card{margin-top:16px;}
+.rail-card h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+.rail-card h3 svg{width:14px;height:14px;stroke:var(--accent);}
+.summary-rows{display:flex;flex-direction:column;gap:8px;}
+.summary-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;padding-bottom:8px;border-bottom:1px dashed var(--line);}
+.summary-row:last-child{border-bottom:0;padding-bottom:0;}
+.summary-row span{color:var(--ink-3);}
+.summary-row b{font-weight:600;text-align:right;}
+.ai-box{background:#fbfaf7;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;}
+.ai-box textarea{border:0;background:transparent;width:100%;min-height:64px;resize:vertical;font-size:12px;line-height:1.6;}
+.ai-box textarea:focus{outline:none;}
+.ai-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;}
+.ai-hint{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);}
+.chat-log{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.chat-msg{font-size:11.5px;line-height:1.55;border-radius:8px;padding:7px 9px;background:#f4f1ea;color:var(--ink-2);}
+.chat-msg.me{background:var(--accent-soft);color:#7e3f24;}
+
+/* ==== Step 3: generation ==== */
+.gen-stage{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:34px 28px;text-align:center;
+}
+.gen-ring{
+  width:64px;height:64px;border-radius:50%;margin:0 auto 16px;
+  border:2px solid var(--line);border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.gen-stage h2{font-size:17px;font-weight:600;}
+.gen-stage p{font-size:12px;color:var(--ink-3);margin-top:6px;}
+.progress{margin:22px auto 0;max-width:520px;height:5px;background:#f0ede6;border-radius:4px;overflow:hidden;}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#d89268);width:0;transition:width .4s ease;}
+.gen-steps{display:flex;justify-content:space-between;gap:10px;max-width:520px;margin:12px auto 0;}
+.gen-steps span{font-size:10.5px;color:var(--line-strong);font-family:var(--mono);}
+.gen-steps span.on{color:var(--accent);}
+.gen-steps span.done{color:var(--sage);}
+
+.deck-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+.deck-title{display:flex;align-items:center;gap:10px;}
+.deck-title h2{font-size:17px;font-weight:600;}
+.pill{
+  font-size:10.5px;font-family:var(--mono);padding:2px 8px;border-radius:20px;
+  background:var(--accent-soft);color:var(--accent-dark);border:1px solid #ecd6c9;
+}
+.pill.sage{background:var(--sage-soft);color:#46604f;border-color:#d7e3d9;}
+
+.deck-wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;align-items:start;}
+.deck-list{
+  display:flex;flex-direction:column;gap:9px;max-height:640px;overflow:auto;
+  padding-right:4px;
+}
+.thumb{
+  border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;
+  display:flex;gap:8px;padding:6px;align-items:center;transition:all .15s ease;text-align:left;
+}
+.thumb:hover{border-color:#cfc7b8;}
+.thumb.on{border-color:var(--accent);box-shadow:0 0 0 2.5px rgba(184,92,56,.12);}
+.thumb-canvas{
+  flex:0 0 84px;height:47px;border-radius:4px;overflow:hidden;border:1px solid var(--line);
+  background:#fff;position:relative;
+}
+.thumb-no{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.thumb-t{font-size:10.5px;font-weight:600;line-height:1.35;display:block;margin-top:1px;}
+.thumb-meta{flex:1;min-width:0;}
+
+.preview-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;position:sticky;top:88px;}
+.preview-frame{
+  aspect-ratio:16/9;border-radius:10px;overflow:hidden;border:1px solid var(--line);
+  background:#fff;position:relative;
+}
+.preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+.preview-toolbar .t{font-size:12px;color:var(--ink-3);font-family:var(--mono);}
+.preview-toolbar .n{display:flex;gap:4px;}
+.slide-render{position:absolute;inset:0;}
+.slide-body{padding:8% 9%;height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+.slide-kicker{font-family:var(--mono);font-size:max(8px,1.1cqw);letter-spacing:.18em;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}
+.slide-h{font-size:min(23px,3.6cqw);line-height:1.25;font-weight:600;letter-spacing:-.01em;}
+.slide-p{font-size:min(11px,1.7cqw);color:var(--ink-2);margin-top:5px;line-height:1.55;}
+.slide-bullets{margin-top:auto;display:flex;flex-direction:column;gap:4px;}
+.slide-bullet{display:flex;gap:6px;font-size:min(10px,1.55cqw);color:var(--ink-2);line-height:1.5;}
+.slide-bullet::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--accent);margin-top:.55em;flex:0 0 3px;}
+.deco{position:absolute;border-radius:50%;pointer-events:none;}
+.deco-a{width:38%;aspect-ratio:1;right:-8%;top:-18%;background:radial-gradient(circle at 30% 30%,rgba(184,92,56,.16),rgba(184,92,56,.02) 70%);}
+.deco-b{width:26%;aspect-ratio:1;left:-9%;bottom:-14%;background:radial-gradient(circle at 60% 40%,rgba(92,114,100,.16),rgba(92,114,100,.02) 70%);}
+.deco-lines{position:absolute;right:8%;bottom:8%;width:24%;height:32%;border-top:1px solid rgba(184,92,56,.35);border-right:1px solid rgba(184,92,56,.35);}
+.slide-num-tag{
+  position:absolute;right:6%;bottom:5%;font-family:var(--mono);font-size:min(8px,1.2cqw);color:var(--ink-3);
+}
+.cover-body{justify-content:center;}
+.cover-body .slide-h{font-size:min(30px,4.6cqw);}
+.cover-rule{width:34px;height:2px;background:var(--accent);margin:10px 0;}
+.cover-meta{font-size:min(9px,1.4cqw);color:var(--ink-3);font-family:var(--mono);letter-spacing:.04em;}
+.quote-body{justify-content:center;background:#fbf7f2;}
+.quote-body .slide-h{font-family:var(--serif);font-style:italic;font-weight:400;font-size:min(20px,3.2cqw);line-height:1.5;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:6%;margin-top:auto;align-items:stretch;}
+.col-box{border:1px solid var(--line);border-radius:6px;padding:7% 6%;background:#fdfcfa;}
+.col-box b{font-size:min(9.5px,1.5cqw);display:block;margin-bottom:3px;}
+.col-box span{font-size:min(8.5px,1.3cqw);color:var(--ink-3);line-height:1.5;display:block;}
+.bars{display:flex;align-items:flex-end;gap:5%;height:34%;margin-top:auto;}
+.bars i{flex:1;background:linear-gradient(180deg,#c9774f,#e8c4b1);border-radius:2px 2px 0 0;}
+.bars i:nth-child(2){height:74%;} .bars i:nth-child(1){height:48%;} .bars i:nth-child(3){height:92%;}
+.bars i:nth-child(4){height:60%;}
+.slide-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;}
+.g-cell{border:1px solid var(--line);border-radius:4px;padding:5px 6px;font-size:min(8px,1.25cqw);color:var(--ink-2);background:#fdfcfa;line-height:1.4;}
+.g-cell b{color:var(--accent);font-family:var(--mono);margin-right:3px;}
+
+.preview-revise{border-top:1px solid var(--line);margin-top:14px;padding-top:14px;}
+.preview-revise label{font-size:12px;font-weight:600;display:block;margin-bottom:6px;}
+.revise-row{display:flex;gap:8px;align-items:flex-end;}
+.revise-row textarea{flex:1;min-height:44px;max-height:100px;resize:vertical;font-size:12px;padding:7px 9px;line-height:1.5;}
+.deck-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;}
+
+/* ==== Modal ==== */
+.modal{
+  position:fixed;inset:0;z-index:60;display:none;
+  background:rgba(24,22,19,.38);backdrop-filter:blur(3px);
+  padding:24px;overflow:auto;
+}
+.modal.open{display:flex;align-items:center;justify-content:center;}
+.modal-card{
+  background:#fff;border-radius:16px;width:min(920px,100%);
+  box-shadow:0 24px 60px rgba(24,22,19,.24);
+  display:flex;flex-direction:column;max-height:86vh;overflow:hidden;
+  animation:pop .2s ease both;
+}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.99);}to{opacity:1;transform:none;}}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid var(--line);}
+.modal-head h2{font-size:16px;font-weight:600;}
+.modal-head p{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+.modal-body{display:grid;grid-template-columns:200px minmax(0,1fr);gap:0;min-height:0;flex:1;}
+.kb-side{border-right:1px solid var(--line);padding:14px;background:#fbfaf7;display:flex;flex-direction:column;gap:4px;}
+.kb-tab{
+  display:flex;align-items:center;gap:8px;border:0;background:transparent;
+  padding:9px 10px;border-radius:8px;text-align:left;color:var(--ink-2);font-size:12.5px;
+}
+.kb-tab svg{width:14px;height:14px;stroke:currentColor;}
+.kb-tab:hover{background:#f1eee7;}
+.kb-tab.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);font-weight:600;color:var(--ink);}
+.kb-tab.on svg{stroke:var(--accent);}
+.kb-tab .count{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.kb-main{padding:16px 18px;display:flex;flex-direction:column;min-height:0;}
+.kb-search{display:flex;gap:8px;margin-bottom:12px;}
+.kb-search input{flex:1;}
+.kb-list{overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:4px;flex:1;}
+.kb-row{
+  display:flex;gap:11px;align-items:flex-start;border:1px solid var(--line);
+  border-radius:10px;padding:10px 11px;background:#fdfcfa;cursor:pointer;transition:all .14s;
+}
+.kb-row:hover{border-color:#cfc7b8;background:#fff;}
+.kb-row.on{border-color:var(--accent);background:#fdf8f5;}
+.kb-check{
+  width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line-strong);
+  flex:0 0 16px;margin-top:1px;display:grid;place-items:center;background:#fff;
+}
+.kb-check svg{width:10px;height:10px;stroke:#fff;opacity:0;}
+.kb-row.on .kb-check{background:var(--accent);border-color:var(--accent);}
+.kb-row.on .kb-check svg{opacity:1;}
+.kb-row .ref-body b{font-size:12.5px;font-weight:600;display:block;line-height:1.4;}
+.kb-row .ref-body p{font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.45;}
+.kb-row .kb-side-meta{font-family:var(--mono);font-size:10px;color:var(--ink-3);white-space:nowrap;}
+.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid var(--line);background:#fbfaf7;}
+.modal-foot .picked{font-size:12px;color:var(--ink-3);}
+.modal-foot .picked b{color:var(--accent);font-family:var(--mono);}
+
+/* ==== Toast ==== */
+.toast-wrap{position:fixed;right:22px;bottom:22px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+.toast{
+  background:#221f1b;color:#f7f5f1;font-size:12.5px;padding:10px 14px;border-radius:9px;
+  box-shadow:0 10px 28px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;
+  animation:toastIn .2s ease both;
+}
+.toast svg{width:14px;height:14px;stroke:#9fc4ab;}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.toast.out{animation:toastOut .25s ease both;}
+@keyframes toastOut{to{opacity:0;transform:translateY(6px);}}
+
+/* ==== Responsive ==== */
+@media (max-width:1080px){
+  .grid-2{grid-template-columns:1fr;}
+  .rail-col{position:static;}
+  .draft-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .outline-wrap{grid-template-columns:1fr;}
+  .deck-wrap{grid-template-columns:1fr;}
+  .deck-list{flex-direction:row;max-height:none;overflow-x:auto;padding-bottom:6px;}
+  .thumb{flex:0 0 168px;}
+  .preview-card{position:static;}
+  .style-picker{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:860px){
+  .sidebar{
+    width:100%;flex:0 0 auto;height:auto;position:static;
+    flex-direction:column;gap:14px;padding:14px 16px;
+    border-right:0;border-bottom:1px solid var(--line);
+  }
+  .app{flex-direction:column;}
+  .nav{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:2px;}
+  .nav-item{flex:0 0 auto;width:auto;background:#fff;border:1px solid var(--line);}
+  .nav-desc{display:none;}
+  .sidebar-foot{display:none;}
+  .content{padding:22px 18px 44px;}
+  .topbar{padding:12px 18px;position:static;}
+  .page-head h1{font-size:23px;}
+  .form-grid{grid-template-columns:1fr;}
+  .modal-body{grid-template-columns:1fr;}
+  .kb-side{flex-direction:row;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;}
+  .draft-grid{grid-template-columns:1fr;}
+  .step-hint{display:none;}
+  .step-line{flex:0 0 12px;}
+  .step{padding:4px 2px;}
+  .deck-wrap{grid-template-columns:1fr;}
+}
+@media (max-width:560px){
+  body{overflow-x:hidden;}
+  .page-head h1{font-size:20px;}
+  .head-actions{width:100%;flex-direction:column;align-items:stretch;}
+  .head-actions .btn{width:100%;min-width:0;}
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 16px;}
+  .crumbs{font-size:11px;min-width:0;flex-wrap:wrap;}
+  .db-status{font-size:10px;padding:4px 8px;}
+  .stepper{padding:12px 10px;}
+  .step{gap:6px;padding:2px;}
+  .step-num{width:22px;height:22px;flex:0 0 22px;font-size:10px;}
+  .step-label{font-size:10.5px;line-height:1.25;white-space:normal;}
+  .step-line{flex:0 0 8px;margin:0 2px;}
+  .bar{flex-direction:column;align-items:stretch;position:static;bottom:auto;}
+  .bar-actions{width:100%;display:flex;gap:8px;}
+  .bar-actions .btn{flex:1;white-space:normal;line-height:1.3;padding:9px 10px;font-size:12px;}
+  .inline-2{grid-template-columns:1fr;}
+  .style-picker{grid-template-columns:1fr;}
+  .deck-head .head-actions{width:auto;}
+  .revise-row{flex-direction:column;align-items:stretch;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ==== Sidebar ==== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7M8 11h5"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">知序工作台</div>
+        <div class="brand-sub">Teach&nbsp;Studio</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="nav-group-label">转化工具</div>
+      <nav class="nav" aria-label="功能导航">
+        <button class="nav-item" data-feature="pdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M9 13h6M9 17h4"/></svg>
+          <span class="nav-text"><span class="nav-title">教材 PDF 转 MD</span><span class="nav-desc">扫描版 / 文字版识别</span></span>
+          <span class="badge-wip">筹备中</span>
+        </button>
+        <button class="nav-item" data-feature="word">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M8.5 12l1.3 5 1.7-3.4 1.7 3.4 1.3-5"/></svg>
+          <span class="nav-text"><span class="nav-title">教材 MD 转教案 Word</span><span class="nav-desc">按课标生成课时教案</span></span>
+          <span class="badge-wip">筹备中</span>
+        </button>
+        <button class="nav-item active" data-feature="ppt" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/><path d="M7.5 12.5l2.5-3 2 2.5 2-3.5 2.5 4"/></svg>
+          <span class="nav-text"><span class="nav-title">教案 + 教材转 PPT</span><span class="nav-desc">三步成稿 · 可反复修改</span></span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="side-note">
+        <h4><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6 4.5 4.5M19.5 19.5 18 18M18 6l1.5-1.5M4.5 19.5 6 18"/><circle cx="12" cy="12" r="4"/></svg>本月生成额度</h4>
+        <p>已生成 17 / 50 份 PPT<br>剩余额度可覆盖约 6 个单元</p>
+        <div class="storage-line" aria-hidden="true"><i></i></div>
+      </div>
+      <div class="user-chip">
+        <div class="avatar" aria-hidden="true">陈</div>
+        <div><b>陈老师</b><span>语文教研组 · 高中</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==== Main ==== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>工作台</span><span class="sep">/</span>
+        <span id="crumbCurrent"><b>教案 + 教材转 PPT</b></span>
+      </div>
+      <div class="topbar-right">
+        <span class="db-status" title="已连接教学资源库">
+          <span class="dot" aria-hidden="true"></span>知识库已连接 · v2.4
+        </span>
+        <button class="icon-btn" aria-label="帮助与快捷键">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.4 2.4 0 1 1 3.2 2.3c-.6.2-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+
+      <!-- ===== Feature: Drafts (default) ===== -->
+      <div id="view-drafts">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Drafts / 草稿箱</div>
+            <h1>历史<em>草稿</em></h1>
+            <p>所有生成过的 PPT 都留在这里。草稿可随时继续修改，确认后再导出，历史版本不会被覆盖。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-accent" id="btnNewTaskDraft">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建任务
+            </button>
+          </div>
+        </div>
+
+        <div class="draft-grid">
+          <article class="draft-card">
+            <div class="draft-thumb dt-a" aria-hidden="true">
+              <div class="dt-deco"></div>
+              <div class="dt-kicker">课堂教学 · 语文</div>
+              <div class="dt-title">荷塘月色</div>
+              <div class="dt-rule"></div>
+              <div class="dt-sub">通感手法与情感线索 · 第一课时</div>
+              <span class="dt-num">01 / 12</span>
+            </div>
+            <div class="draft-body">
+              <div class="draft-tags">
+                <span class="pill">草稿 v1</span>
+                <span class="tag tag-jiaoan">教案 2 份</span>
+                <span class="tag tag-jiaocai">教材 1 份</span>
+              </div>
+              <h3>《荷塘月色》——通感与情感线索</h3>
+              <div class="draft-desc">12 页 · 简约学术 · 45 分钟 · 高一（3）班</div>
+              <div class="draft-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                最近修改 12 分钟前 · 陈老师
+              </div>
+              <div class="draft-actions">
+                <button class="btn btn-sm btn-primary" data-open-draft="1">继续编辑</button>
+                <button class="btn btn-sm" data-download-draft="1">下载</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="draft-card">
+            <div class="draft-thumb dt-b" aria-hidden="true">
+              <div class="dt-deco"></div>
+              <div class="dt-kicker">单元复习 · 语文</div>
+              <div class="dt-title">荷塘月色</div>
+              <div class="dt-rule"></div>
+              <div class="dt-sub">精简版 · 40 分钟课时</div>
+              <span class="dt-num">01 / 08</span>
+            </div>
+            <div class="draft-body">
+              <div class="draft-tags">
+                <span class="pill sage">已确认</span>
+                <span class="tag tag-local">校本模板</span>
+                <span class="tag tag-jiaoan">教案 1 份</span>
+              </div>
+              <h3>《荷塘月色》——精简版（40 分钟）</h3>
+              <div class="draft-desc">8 页 · 极简黑白 · 40 分钟 · 高一（3）班</div>
+              <div class="draft-meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+                3 天前 · 陈老师
+              </div>
+              <div class="draft-actions">
+                <button class="btn btn-sm btn-primary" data-open-draft="2">继续编辑</button>
+                <button class="btn btn-sm" data-download-draft="2">下载</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="draft-card draft-new">
+            <button class="draft-new-inner" id="btnNewTaskDraft2">
+              <span class="dn-plus" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </span>
+              <b>新建 PPT 任务</b>
+              <span>从教案与教材开始，三步生成可讲解的课件</span>
+            </button>
+          </article>
+        </div>
+
+        <div class="draft-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          仅显示最近 30 天的草稿，制作过程会自动保存
+        </div>
+      </div>
+
+      <!-- ===== Feature: PPT (main) ===== -->
+      <div id="view-ppt" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Workflow 03 / Presentation</div>
+            <h1>教案与教材，<em>一键成稿</em></h1>
+            <p>引用知识库中的教案与教材，套用学校模板，三步生成可讲解的课堂 PPT。全程可改，草稿确认后才导出。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" id="btnDraftHistory">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              历史草稿
+            </button>
+            <button class="btn" id="btnNewTask">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建任务
+            </button>
+          </div>
+        </div>
+
+        <!-- Stepper -->
+        <div class="stepper" role="tablist" aria-label="制作流程">
+          <button class="step active" data-step="1" role="tab" aria-selected="true">
+            <span class="step-num">01</span>
+            <span class="step-label">基础信息<span class="step-hint">页数 · 风格 · 参考资料</span></span>
+          </button>
+          <span class="step-line" aria-hidden="true"></span>
+          <button class="step" data-step="2" role="tab" aria-selected="false">
+            <span class="step-num">02</span>
+            <span class="step-label">大纲制作<span class="step-hint">修改 · 提要求重制</span></span>
+          </button>
+          <span class="step-line" aria-hidden="true"></span>
+          <button class="step" data-step="3" role="tab" aria-selected="false">
+            <span class="step-num">03</span>
+            <span class="step-label">生成 PPT<span class="step-hint">预览 · 修改 · 下载</span></span>
+          </button>
+        </div>
+
+        <!-- ===== Step 1 ===== -->
+        <section class="panel" id="panel-1" role="tabpanel" aria-label="基础信息">
+          <div class="grid-2">
+            <div>
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
+                      基础信息
+                    </div>
+                    <div class="card-sub">这些信息会写进封面与页脚，并影响大纲详略</div>
+                  </div>
+                  <span class="kicker">Step 01</span>
+                </div>
+
+                <div class="form-grid">
+                  <div class="field full">
+                    <label for="fTopic">课题名称 <span class="req">*</span></label>
+                    <input class="control" id="fTopic" type="text" value="《荷塘月色》——通感与情感线索" placeholder="例如：《荷塘月色》第一课时">
+                  </div>
+
+                  <div class="field full">
+                    <label for="fCount">PPT 页数</label>
+                    <div class="count-row">
+                      <input class="control count-input" id="fCount" type="number" min="6" max="40" value="12" aria-label="PPT 页数">
+                      <input type="range" id="fCountRange" min="6" max="40" value="12" aria-label="拖动调整页数">
+                    </div>
+                    <div class="preset-row" role="group" aria-label="页数预设">
+                      <button class="chip-btn" data-count="8">8 页 · 精讲</button>
+                      <button class="chip-btn on" data-count="12">12 页 · 常规</button>
+                      <button class="chip-btn" data-count="18">18 页 · 完整</button>
+                      <button class="chip-btn" data-count="24">24 页 · 单元</button>
+                    </div>
+                  </div>
+
+                  <div class="field full">
+                    <label>视觉风格</label>
+                    <div class="style-picker" role="radiogroup" aria-label="视觉风格">
+                      <button class="style-opt on" data-style="academic" role="radio" aria-checked="true">
+                        <span class="style-thumb st-a" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">简约学术</span>
+                        <span class="style-desc">留白 · 宋体标题</span>
+                      </button>
+                      <button class="style-opt" data-style="warm" role="radio" aria-checked="false">
+                        <span class="style-thumb st-b" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">温暖人文</span>
+                        <span class="style-desc">暖色 · 图文并重</span>
+                      </button>
+                      <button class="style-opt" data-style="biz" role="radio" aria-checked="false">
+                        <span class="style-thumb st-c" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">严谨清晰</span>
+                        <span class="style-desc">蓝灰 · 结构化</span>
+                      </button>
+                      <button class="style-opt" data-style="mono" role="radio" aria-checked="false">
+                        <span class="style-thumb st-d" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">极简黑白</span>
+                        <span class="style-desc">深色 · 投影友好</span>
+                      </button>
+                    </div>
+                    <div class="lock-hint" id="styleLockHint" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                      <span>已上传 PPT 模板，视觉风格由模板决定，风格选项暂不可用。</span>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label for="fTeacher">授课人</label>
+                    <input class="control" id="fTeacher" type="text" value="陈老师">
+                  </div>
+                  <div class="field">
+                    <label for="fDuration">课时长度</label>
+                    <select class="control" id="fDuration">
+                      <option>40 分钟</option><option selected>45 分钟</option><option>60 分钟</option><option>90 分钟（两课时）</option>
+                    </select>
+                  </div>
+
+                  <div class="field full">
+                    <label for="fAudience">面向对象</label>
+                    <input class="control" id="fAudience" type="text" value="高一（3）班 · 语文基础中等偏上">
+                    <span class="hint">描述班级水平，生成时会自动调整术语密度与提问难度</span>
+                  </div>
+
+                  <div class="field full">
+                    <label for="fExtra">补充要求 <span class="hint">（可选）</span></label>
+                    <textarea class="control" id="fExtra" rows="3" placeholder="例如：重点讲通感手法；加入一段朗诵音频页；结尾留 5 分钟课堂练习……"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- right rail -->
+            <div class="rail-col">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7M8 11h5"/></svg>
+                      参考资料
+                    </div>
+                    <div class="card-sub">来自教学资源库，可多选</div>
+                  </div>
+                  <span class="pill sage">已连接</span>
+                </div>
+                <div class="ref-list" id="refList">
+                  <!-- JS renders picked references -->
+                </div>
+                <div class="ref-actions">
+                  <button class="btn" id="btnOpenKB">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+                    从知识库选择
+                  </button>
+                  <button class="btn" id="btnUploadRef">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="m7.5 9.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                    本地上传
+                  </button>
+                </div>
+                <input type="file" id="refFileInput" accept=".doc,.docx,.pdf,.md,.txt" multiple hidden>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                      PPT 模板
+                    </div>
+                    <div class="card-sub">仅需上传一次，本次直接套用</div>
+                  </div>
+                  <span class="kicker">.pptx</span>
+                </div>
+                <div id="tplSlot">
+                  <label class="drop" id="dropZone" for="tplInput">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                    <div class="drop-label">拖入模板，或<b>点击上传</b></div>
+                    <div class="drop-hint">支持 .pptx / .potx · 建议 ≤ 30MB</div>
+                    <input type="file" id="tplInput" accept=".pptx,.potx" aria-label="上传 PPT 模板">
+                  </label>
+                </div>
+                <div class="notice">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+                  <span>模板只用于版式与配色，不会覆盖内容。模板库与多人共享功能稍后开放。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <div class="bar-summary">
+              <span>已选 <b id="sumRefs">0</b> 份参考资料</span><span aria-hidden="true">·</span>
+              <span>页数 <b id="sumCount">12</b></span><span aria-hidden="true">·</span>
+              <span>风格 <b id="sumStyle">简约学术</b></span>
+            </div>
+            <div class="bar-actions">
+              <button class="btn btn-ghost" id="btnResetStep1">重置</button>
+              <button class="btn btn-accent" id="btnToOutline">
+                保存并生成大纲
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Step 2 ===== -->
+        <section class="panel" id="panel-2" hidden role="tabpanel" aria-label="大纲制作">
+          <div class="gen-stage" id="outlineGen" hidden>
+            <div class="gen-ring" aria-hidden="true"></div>
+            <h2>正在制作大纲</h2>
+            <p id="outlineGenText">读取教案与教材…</p>
+            <div class="progress"><i id="outlineGenBar"></i></div>
+            <div class="gen-steps">
+              <span data-og="0">读取教案与教材</span><span data-og="1">提取知识点</span><span data-og="2">编排课时结构</span><span data-og="3">排列幻灯片顺序</span>
+            </div>
+          </div>
+          <div id="outlineReady">
+          <div class="outline-wrap">
+            <div>
+              <div class="card" style="padding:18px 20px;">
+                <div class="card-head" style="margin-bottom:14px;">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                      大纲草稿
+                    </div>
+                    <div class="card-sub">标题可直接编辑，顺序可调整，改动会保留到生成结果</div>
+                  </div>
+                  <span class="pill" id="outlineCount">共 12 页</span>
+                </div>
+                <div class="outline-list" id="outlineList"><!-- JS renders --></div>
+                <button class="add-slide" id="btnAddSlide">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  添加一页
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div class="rail-card">
+                <h3>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M5 8h14"/></svg>
+                  生成参数
+                </h3>
+                <div class="summary-rows">
+                  <div class="summary-row"><span>课题</span><b id="s2Topic">—</b></div>
+                  <div class="summary-row"><span>页数</span><b id="s2Count">12 页</b></div>
+                  <div class="summary-row"><span>风格</span><b id="s2Style">简约学术</b></div>
+                  <div class="summary-row"><span>参考资料</span><b id="s2Refs">0 份</b></div>
+                  <div class="summary-row"><span>模板</span><b id="s2Tpl">未上传</b></div>
+                </div>
+              </div>
+
+              <div class="rail-card">
+                <h3>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9L18 16Z"/></svg>
+                  提要求重新制作
+                </h3>
+                <div class="ai-box">
+                  <textarea id="regenPrompt" placeholder="例如：把精读部分拆成三页，每页只讲一个手法；最后一页改成课堂检测。"></textarea>
+                  <div class="ai-actions">
+                    <span class="ai-hint">整稿重排</span>
+                    <button class="btn btn-primary btn-sm" id="btnRegen">重新生成大纲</button>
+                  </div>
+                </div>
+                <div class="chat-log" id="regenLog"></div>
+              </div>
+
+              <div class="rail-card" style="background:#fbfaf7;box-shadow:none;">
+                <h3><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>小提示</h3>
+                <p style="font-size:11.5px;color:var(--ink-3);line-height:1.65;">大纲确认后才会进入生成。生成结果不满意，可以在第三步直接提要求改单页，无需从头再来。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <div class="bar-summary"><span>大纲已就绪，确认后约需 40 秒生成整套草稿</span></div>
+            <div class="bar-actions">
+              <button class="btn" id="btnBackTo1">上一步</button>
+              <button class="btn btn-accent" id="btnGenerate">
+                确认大纲，生成 PPT
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <!-- ===== Step 3 ===== -->
+        <section class="panel" id="panel-3" hidden role="tabpanel" aria-label="生成 PPT">
+          <div id="genStage" class="gen-stage">
+            <div class="gen-ring" aria-hidden="true"></div>
+            <h2>正在生成草稿 PPT</h2>
+            <p id="genText">解析教材 Markdown 结构…</p>
+            <div class="progress"><i id="genBar"></i></div>
+            <div class="gen-steps">
+              <span data-g="0">解析教材</span><span data-g="1">抽取知识点</span><span data-g="2">匹配模板版式</span><span data-g="3">生成图文页</span>
+            </div>
+          </div>
+
+          <div id="deckStage" hidden>
+            <div class="deck-head">
+              <div class="deck-title">
+                <h2 id="deckTitle">《荷塘月色》——通感与情感线索</h2>
+                <span class="pill">草稿 v1</span>
+              </div>
+              <div class="head-actions">
+                <button class="btn btn-sm" id="btnBackOutline">返回大纲</button>
+                <button class="btn btn-sm btn-primary" id="btnDownloadTop">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
+                  下载 PPT
+                </button>
+              </div>
+            </div>
+
+            <div class="deck-wrap">
+              <div class="deck-list" id="deckList" role="listbox" aria-label="幻灯片列表"><!-- JS renders --></div>
+
+              <div class="preview-card">
+                <div class="preview-toolbar">
+                  <span class="t" id="previewMeta">第 1 页 / 共 12 页</span>
+                  <div class="n">
+                    <button class="mini-btn" id="btnPrev" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+                    <button class="mini-btn" id="btnNext" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+                  </div>
+                </div>
+                <div class="preview-frame">
+                  <div class="slide-render" id="previewFrame"></div>
+                </div>
+
+                <div class="preview-revise">
+                  <label for="reviseInput">对当前页提修改要求</label>
+                  <div class="revise-row">
+                    <textarea class="control" id="reviseInput" placeholder="例如：这一页文字太多，改成三个短句；换成左右两栏配图。"></textarea>
+                    <button class="btn btn-primary btn-sm" id="btnRevise">提交修改</button>
+                  </div>
+                  <div class="chat-log" id="reviseLog"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bar">
+              <div class="bar-summary">
+                <span class="dot" style="background:#5f8a70;"></span>
+                <span>草稿已保存 · 最近修改 刚刚 · <b id="sumSlides">12</b> 页</span>
+              </div>
+              <div class="bar-actions">
+                <button class="btn" id="btnBackTo2">继续改大纲</button>
+                <button class="btn btn-accent" id="btnConfirmDownload">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+                  确认并下载 PPT
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Feature: WIP placeholder ===== -->
+      <div id="view-wip" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow" id="wipEyebrow">Workflow 01</div>
+            <h1 id="wipTitle">教材 PDF 转 MD</h1>
+            <p id="wipDesc">功能筹备中。当前版本仅开放「教案 + 教材转 PPT」。</p>
+          </div>
+        </div>
+        <div class="wip">
+          <svg viewBox="0 0 120 120" fill="none" stroke="#cfc7b8" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="28" y="18" width="52" height="66" rx="6" fill="#fdfcfa"/>
+            <path d="M40 34h28M40 44h28M40 54h18"/>
+            <rect x="44" y="62" width="46" height="40" rx="6" fill="#fff" stroke="#b8b0a2"/>
+            <path d="M54 74h18M54 82h24M54 90h12" stroke="#d8d2c6"/>
+            <path d="M84 40l8-8" stroke="#b85c38"/>
+            <circle cx="88" cy="36" r="12" stroke="#b85c38" stroke-dasharray="3 4"/>
+          </svg>
+          <h2>这个工作台还在打磨</h2>
+          <p>PDF 解析与教案 Word 生成正在内测。先使用已上线的 PPT 生成流程，用知识库里的教案和教材直接成稿。</p>
+          <button class="btn btn-accent" data-feature="ppt">回到 PPT 生成</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ==== Knowledge base modal ==== -->
+<div class="modal" id="kbModal" role="dialog" aria-modal="true" aria-labelledby="kbTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h2 id="kbTitle">从知识库选择参考资料</h2>
+        <p>已连接「教学资源库 v2.4」· 支持同时引用教案与教材，最多 6 份</p>
+      </div>
+      <button class="icon-btn" id="kbClose" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="kb-side" role="tablist" aria-label="资源类型">
+        <button class="kb-tab on" data-kbtab="all">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          全部资源<span class="count" id="kbCountAll">0</span>
+        </button>
+        <button class="kb-tab" data-kbtab="jiaoan">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/></svg>
+          教案<span class="count" id="kbCountJ">0</span>
+        </button>
+        <button class="kb-tab" data-kbtab="jiaocai">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7"/></svg>
+          教材<span class="count" id="kbCountC">0</span>
+        </button>
+      </div>
+      <div class="kb-main">
+        <div class="kb-search">
+          <input class="control" id="kbSearch" type="search" placeholder="搜索教案或教材名称、单元、作者…" aria-label="搜索知识库">
+          <button class="btn btn-sm" id="kbRefresh" title="重新同步知识库">刷新</button>
+        </div>
+        <div class="kb-list" id="kbList"><!-- JS renders --></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="picked">已选 <b id="kbPicked">0</b> / 6 份参考资料</span>
+      <div class="bar-actions">
+        <button class="btn btn-sm" id="kbCancel">取消</button>
+        <button class="btn btn-sm btn-accent" id="kbConfirm">加入参考资料</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+
+<style>
+  /* 让 slide 内部字号随画布缩放（container query 单位） */
+  .slide-render{container-type:size;}
+</style>
+<script>
+(function(){
+  "use strict";
+
+  /* ================= 数据层 ================= */
+  const STYLE_MAP = {academic:"简约学术", warm:"温暖人文", biz:"严谨清晰", mono:"极简黑白"};
+  const KB_DATA = [
+    {id:"j1", type:"jiaoan", title:"《荷塘月色》教学设计（第二课时）", desc:"通感手法精讲 + 情感线索梳理，含 3 处课堂追问与板书设计。", meta:"32 页 · 更新 2026-09-12"},
+    {id:"j2", type:"jiaoan", title:"《故都的秋》群文阅读教案", desc:"与《荷塘月色》对比阅读，重点落在借景抒情与审美取向。", meta:"26 页 · 更新 2026-09-03"},
+    {id:"j3", type:"jiaoan", title:"《赤壁赋》主问题式教案", desc:"以「水月之辩」为主问题，配套 5 道当堂检测。", meta:"29 页 · 更新 2026-08-21"},
+    {id:"j4", type:"jiaoan", title:"《劝学》文言文精讲教案", desc:"实词虚词梳理与论证结构拆解，适合中等水平班级。", meta:"24 页 · 更新 2026-08-18"},
+    {id:"j5", type:"jiaoan", title:"散文单元整体教学设计", desc:"单元统整：3 篇散文 + 1 次写作任务，含评价量表。", meta:"41 页 · 更新 2026-07-30"},
+    {id:"c1", type:"jiaocai", title:"统编版高中语文必修上册（教材 MD）", desc:"全书 8 个单元，已结构化，含注释、课后习题与单元任务。", meta:"12.4 万字 · 解析完成"},
+    {id:"c2", type:"jiaocai", title:"人教版高中语文必修上册 · 教师用书", desc:"课文解读、教学建议与补充资料，可作深度参考。", meta:"9.8 万字 · 解析完成"},
+    {id:"c3", type:"jiaocai", title:"高中语文必修上 · 单元导学与知识清单", desc:"每单元核心知识、必备篇目与考点索引。", meta:"3.2 万字 · 解析完成"},
+    {id:"c4", type:"jiaocai", title:"现代散文鉴赏辞典（节选 MD）", desc:"朱自清散文艺术特色词条，适合语言赏析页引用。", meta:"1.7 万字 · 解析完成"}
+  ];
+
+  const state = {
+    step:1,
+    feature:"ppt",
+    count:12,
+    style:"academic",
+    template:null,
+    refs:["j1","c1"],
+    localRefs:[],
+    outline:[],
+    slides:[],
+    current:0,
+    generated:false,
+    kbTab:"all",
+    kbSelected:[]
+  };
+
+  const $ = (sel, root) => (root||document).querySelector(sel);
+  const $$ = (sel, root) => Array.prototype.slice.call((root||document).querySelectorAll(sel));
+  const esc = (str) => String(str==null?"":str).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+  /* ================= Toast ================= */
+  const toastWrap = $("#toastWrap");
+  function toast(msg){
+    const el = document.createElement("div");
+    el.className = "toast";
+    el.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg><span>'+esc(msg)+'</span>';
+    toastWrap.appendChild(el);
+    setTimeout(()=>{ el.classList.add("out"); setTimeout(()=>el.remove(), 260); }, 2400);
+  }
+
+  /* ================= 大纲生成 ================= */
+  const EXTRA_POOL = [
+    {type:"chart", kicker:"背景补充", title:"作者年表与时代坐标", lead:"1917—1927：从清华求学到北伐前夜", points:["1927 年 7 月，朱自清任教清华","社会动荡与个人苦闷交织","「这几天心里颇不宁静」的现实根由"]},
+    {type:"content", kicker:"精读延展", title:"第 4 段逐句细读", lead:"从「曲曲折折的荷塘上面」到「叶子底下是脉脉的流水」", points:["观察顺序：由远及近、由静到动","比喻链：荷叶—荷花—荷香—荷波","从景物描写转向内心独白"]},
+    {type:"content", kicker:"语言基础", title:"易错字词与朗读指导", lead:"诵读节奏决定情感呈现的层次", points:["蓊蓊郁郁、袅娜、脉脉、倩影","舒缓语调处理「颇不宁静」","示范朗读与跟读对照"]},
+    {type:"two", kicker:"对比阅读", title:"《荷塘月色》与《故都的秋》", lead:"同为借景抒情，情感基调何以不同", points:["清幽之美 vs 清静悲凉","写景密度与叙事视角的差异","审美取向背后的时代心境"]},
+    {type:"activity", kicker:"课堂活动", title:"仿写练习：用通感写一种感官", lead:"把听觉写成视觉，把触觉写成气味", points:["给出 3 个生活化情境","4 人小组互评句式","投屏展示 2 份样例并点评"]},
+    {type:"chart", kicker:"课堂检测", title:"当堂检测 · 5 题快问快答", lead:"覆盖手法判断、语句理解与情感把握", points:["通感与比喻的区分（2 题）","关键句含义理解（2 题）","情感线索排序（1 题）"]},
+    {type:"content", kicker:"结构梳理", title:"行踪线索与情感线索双线并行", lead:"空间位移 → 心理位移", points:["出家门—小路—荷塘—归家","不宁静 → 求宁静 → 得宁静 → 失宁静","两条线索的对应关系图示"]},
+    {type:"quote", kicker:"文本细读", title:"「热闹是他们的，我什么也没有。」", lead:"一句话道尽独处的自由与孤独", points:[]},
+    {type:"two", kicker:"写法归纳", title:"写景技法清单", lead:"从这篇散文里可迁移的三种方法", points:["定点观察 + 移步换景","以声写静、以动衬静","景语与情语的咬合"]},
+    {type:"content", kicker:"课堂延伸", title:"从文本走向写作任务", lead:"把「景语即情语」用到自己的写作里", points:["校园一角的 200 字片段","要求：至少一处通感","同伴互批：找出最动人的一句"]},
+    {type:"chart", kicker:"学情反馈", title:"常见误读与纠偏", lead:"三个典型问题，提前打预防针", points:["把「淡淡哀愁」读成消极厌世","通感当成夸张手法","忽略时代背景的解读"]},
+    {type:"content", kicker:"单元视角", title:"为什么这篇散文值得慢读", lead:"在整单元中的位置与价值", points:["承接写景散文的技法积累","开启现代散文的情感表达","为单元写作任务做铺垫"]},
+    {type:"activity", kicker:"课堂活动", title:"配乐朗诵与画面想象", lead:"闭上眼睛，跟着声音走进清华园", points:["分段落分配朗读任务","描述脑海中出现的画面","用一个词概括听感"]},
+    {type:"two", kicker:"知识补充", title:"通感：一种跨感官的表达", lead:"定义、例证与判断方法", points:["「微风过处，送来缕缕清香，仿佛远处高楼上渺茫的歌声似的」","嗅觉 → 听觉的迁移","判断口诀：两种感官 + 一个喻体"]}
+  ];
+
+  const BASE_POOL = [
+    {type:"cover", kicker:"课堂教学 · 语文", title:"荷塘月色", lead:"通感手法与情感线索 · 第一课时", points:[]},
+    {type:"content", kicker:"学习目标", title:"这一节课我们要抵达哪里", lead:"读懂景物，也读懂那个夜里的人", points:["梳理行踪与情感的双线结构","识别并赏析通感、叠词等语言手法","结合时代背景理解「淡淡的哀愁」"]},
+    {type:"content", kicker:"知人论世", title:"朱自清与 1927 年的清华园", lead:"了解写作背景，是读懂情感的前提", points:["1898—1948，字佩弦，现代散文大家","1927 年任教于清华大学中文系","时代动荡中的知识分子心境"]},
+    {type:"two", kicker:"整体感知", title:"一夜行踪，一条情绪曲线", lead:"从「不宁静」出发，最终又回到「不宁静」", points:["空间线索：家 — 小路 — 荷塘 — 回家","情感线索：不宁静 — 求宁静 — 得宁静 — 失宁静","两条线索在文本中交替推进"]},
+    {type:"quote", kicker:"文眼句", title:"「这几天心里颇不宁静。」", lead:"全文的起点，也是全文的归宿", points:[]},
+    {type:"content", kicker:"精读一", title:"月下荷塘：一场通感的盛宴", lead:"「微风过处，送来缕缕清香，仿佛远处高楼上渺茫的歌声似的」", points:["嗅觉被写成听觉：远处、渺茫、若有若无","荷叶、荷花、荷香、荷波四个层次","由景入情：热闹是它们的，我什么也没有"]},
+    {type:"two", kicker:"精读二", title:"荷塘月色：光与影的二重奏", lead:"「塘中的月色并不均匀；但光与影有着和谐的旋律」", points:["月色是主角：泻、浮、洗、笼","动词的锤炼：一个「泻」字写尽柔和","光影搭配形成绘画般的层次"]},
+    {type:"chart", kicker:"语言品析", title:"叠词与炼字：节奏从哪里来", lead:"「曲曲折折」「蓊蓊郁郁」「脉脉」的音响效果", points:["叠词拉长语调，放缓节奏","叠词强化画面密度","与全文舒缓情绪相互成全"]},
+    {type:"content", kicker:"情感线索", title:"淡淡的喜悦，淡淡的哀愁", lead:"为什么美景之后仍是「什么也没有」", points:["独处带来的短暂自由","热闹与孤独的对照","个人苦闷与时代氛围的投影"]},
+    {type:"activity", kicker:"课堂活动", title:"小组仿写：把声音写成颜色", lead:"用通感改写一句身边的声音", points:["4 人一组，5 分钟完成","要求保留原句的感官落点","推选一句全班共评"]},
+    {type:"content", kicker:"课堂小结", title:"这一夜，他找到了什么", lead:"景是入口，情是归处", points:["结构：双线并行的圆环式结构","语言：通感、叠词、动词锤炼","情感：在美景中短暂安放自己"]},
+    {type:"end", kicker:"课后任务", title:"把今夜的月色带回你的写作", lead:"完成片段写作，下节课带来分享", points:["200 字：校园一角 + 一处通感","选读《故都的秋》，标记写景句","思考：两篇散文的「静」有何不同"]}
+  ];
+
+  function buildOutline(count, topic, prompt){
+    const head = Object.assign({}, BASE_POOL[0]);
+    if(topic){
+      const parts = topic.split("——");
+      const clean = parts[0].replace(/^《|》$/g, "").trim();
+      if(clean) head.title = clean;
+      head.lead = parts[1] ? parts[1].trim() + " · 第一课时" : "课文精读 · 第一课时";
+    }
+    const last = Object.assign({}, BASE_POOL[BASE_POOL.length-1]);
+    const midPool = BASE_POOL.slice(1, -1).concat(EXTRA_POOL);
+    const need = Math.max(1, count - 2);
+    const seeded = [];
+    for(let i=0;i<need;i++){ seeded.push(JSON.parse(JSON.stringify(midPool[i % midPool.length]))); }
+    if(prompt){
+      // 让重制结果与上一次略作区分：按关键词插入练习页
+      if(/练习|检测|题/.test(prompt)){
+        const extra = {type:"activity", kicker:"即学即练", title:"课堂即时练：3 分钟小任务", lead:"当堂完成，当堂反馈", points:["判断两处通感并说明理由","用一句话概括情感线索","同伴交换批改"]};
+        seeded.splice(seeded.length-1, 0, extra);
+      }
+    }
+    return [head].concat(seeded, [last]);
+  }
+
+  /* ================= 步骤切换 ================= */
+  function goStep(n){
+    state.step = n;
+    $$(".panel").forEach(p => { p.hidden = true; });
+    const panel = $("#panel-"+n);
+    if(panel) panel.hidden = false;
+    $$(".step").forEach(b => {
+      const v = Number(b.dataset.step);
+      b.classList.toggle("active", v===n);
+      b.classList.toggle("done", v<n);
+      b.setAttribute("aria-selected", v===n ? "true" : "false");
+    });
+    $$(".step-line").forEach((line,i)=>line.classList.toggle("done", i < n-1));
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  /* ================= 参考资料 ================= */
+  function getRef(id){ return KB_DATA.find(k => k.id===id); }
+  function renderRefs(){
+    const box = $("#refList");
+    const items = state.refs.map(id=>getRef(id)).filter(Boolean)
+      .map(r=>Object.assign({}, r, {local:false}))
+      .concat(state.localRefs);
+    if(!items.length){
+      box.innerHTML = '<div class="empty-ref"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h6"/></svg><div>还没有引用任何资料，从知识库选择或上传本地文件</div></div>';
+    } else {
+      box.innerHTML = items.map(r=>{
+        const tag = r.type==="jiaoan" ? '<span class="tag tag-jiaoan">教案</span>'
+          : r.type==="jiaocai" ? '<span class="tag tag-jiaocai">教材</span>'
+          : '<span class="tag tag-local">本地</span>';
+        const attr = r.local ? 'data-remove-local="'+r.id+'"' : 'data-remove-ref="'+r.id+'"';
+        return '<div class="ref-item'+(r.local?" is-local":"")+'">'+
+          '<div class="ref-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/></svg></div>'+
+          '<div class="ref-body"><div class="ref-title">'+esc(r.title)+'</div><div class="ref-meta">'+tag+'<span>'+esc(r.meta)+'</span></div></div>'+
+          '<button class="ref-x" '+attr+' aria-label="移除 '+esc(r.title)+'"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'+
+        '</div>';
+      }).join("");
+    }
+    const total = state.refs.length + state.localRefs.length;
+    $("#sumRefs").textContent = total;
+    $("#s2Refs").textContent = total + " 份";
+  }
+
+  $("#refList").addEventListener("click", e=>{
+    const kbBtn = e.target.closest("[data-remove-ref]");
+    if(kbBtn){
+      state.refs = state.refs.filter(id => id !== kbBtn.dataset.removeRef);
+      renderRefs();
+      toast("已移除该参考资料");
+      return;
+    }
+    const localBtn = e.target.closest("[data-remove-local]");
+    if(localBtn){
+      state.localRefs = state.localRefs.filter(f => f.id !== localBtn.dataset.removeLocal);
+      renderRefs();
+      toast("已移除本地文件");
+    }
+  });
+
+  /* ================= 本地参考资料上传 ================= */
+  const refFileInput = $("#refFileInput");
+  $("#btnUploadRef").addEventListener("click", ()=>refFileInput.click());
+  refFileInput.addEventListener("change", ()=>{
+    const files = Array.prototype.slice.call(refFileInput.files || []);
+    files.forEach(f=>{
+      state.localRefs.push({
+        id:"local-"+Date.now()+"-"+Math.random().toString(36).slice(2,7),
+        type:"local",
+        title:f.name,
+        meta:(f.size ? (f.size/1024/1024).toFixed(1)+" MB · 本地文件" : "本地文件"),
+        local:true
+      });
+    });
+    refFileInput.value = "";
+    if(files.length){
+      renderRefs();
+      toast("已加入 " + files.length + " 份本地参考资料");
+    }
+  });
+
+  /* ================= 知识库弹窗 ================= */
+  const kbModal = $("#kbModal");
+  function openKB(){
+    state.kbSelected = state.refs.slice();
+    state.kbTab = "all";
+    $("#kbSearch").value = "";
+    $$(".kb-tab").forEach(t => t.classList.toggle("on", t.dataset.kbtab==="all"));
+    renderKB();
+    kbModal.classList.add("open");
+    document.body.style.overflow = "hidden";
+    setTimeout(()=>$("#kbSearch").focus(), 80);
+  }
+  function closeKB(){
+    kbModal.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+  function renderKB(){
+    const q = $("#kbSearch").value.trim().toLowerCase();
+    const list = KB_DATA.filter(r => (state.kbTab==="all" || r.type===state.kbTab) &&
+      (!q || (r.title+r.desc).toLowerCase().indexOf(q) > -1));
+    $("#kbList").innerHTML = list.length ? list.map(r=>{
+      const on = state.kbSelected.indexOf(r.id) > -1;
+      const tag = r.type==="jiaoan" ? '<span class="tag tag-jiaoan">教案</span>' : '<span class="tag tag-jiaocai">教材</span>';
+      return '<div class="kb-row'+(on?" on":"")+'" data-kb-id="'+r.id+'" role="option" aria-selected="'+on+'" tabindex="0">'+
+        '<span class="kb-check"><svg viewBox="0 0 24 24" fill="none" stroke-width="3" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg></span>'+
+        '<div class="ref-body"><b>'+esc(r.title)+'</b><p>'+esc(r.desc)+'</p><div class="ref-meta">'+tag+'<span>'+esc(r.meta)+'</span></div></div>'+
+      '</div>';
+    }).join("") : '<div class="empty-ref" style="margin-top:6px;">没有匹配的资料，换个关键词试试</div>';
+    $("#kbPicked").textContent = state.kbSelected.length;
+    const countBy = t => KB_DATA.filter(r=>r.type===t).length;
+    $("#kbCountJ").textContent = countBy("jiaoan");
+    $("#kbCountC").textContent = countBy("jiaocai");
+    $("#kbCountAll").textContent = KB_DATA.length;
+  }
+  function toggleKb(id){
+    const i = state.kbSelected.indexOf(id);
+    if(i > -1) state.kbSelected.splice(i,1);
+    else {
+      if(state.kbSelected.length >= 6){ toast("最多引用 6 份参考资料"); return; }
+      state.kbSelected.push(id);
+    }
+    renderKB();
+  }
+  $$(".kb-tab").forEach(t=>t.addEventListener("click", ()=>{
+    state.kbTab = t.dataset.kbtab;
+    $$(".kb-tab").forEach(x=>x.classList.toggle("on", x===t));
+    renderKB();
+  }));
+  $("#kbSearch").addEventListener("input", renderKB);
+  $("#kbList").addEventListener("click", e=>{
+    const row = e.target.closest("[data-kb-id]");
+    if(row) toggleKb(row.dataset.kbId);
+  });
+  $("#kbList").addEventListener("keydown", e=>{
+    const row = e.target.closest("[data-kb-id]");
+    if(row && (e.key==="Enter" || e.key===" ")){ e.preventDefault(); toggleKb(row.dataset.kbId); }
+  });
+  $("#kbRefresh").addEventListener("click", ()=>{
+    const btn = $("#kbRefresh");
+    btn.textContent = "同步中…"; btn.disabled = true;
+    setTimeout(()=>{ btn.textContent="刷新"; btn.disabled=false; renderKB(); toast("知识库已同步 · 4 条新增记录"); }, 800);
+  });
+  $("#btnOpenKB").addEventListener("click", openKB);
+  $("#kbClose").addEventListener("click", closeKB);
+  $("#kbCancel").addEventListener("click", closeKB);
+  $("#kbConfirm").addEventListener("click", ()=>{
+    state.refs = state.kbSelected.slice();
+    renderRefs(); closeKB();
+    toast("已加入 " + state.refs.length + " 份参考资料");
+  });
+  kbModal.addEventListener("click", e=>{ if(e.target===kbModal) closeKB(); });
+  document.addEventListener("keydown", e=>{ if(e.key==="Escape" && kbModal.classList.contains("open")) closeKB(); });
+
+  /* ================= 表单 ================= */
+  const countInput = $("#fCount"), countRange = $("#fCountRange");
+  function setCount(v, from){
+    v = Math.min(40, Math.max(6, Number(v)||12));
+    state.count = v;
+    countInput.value = v;
+    countRange.value = v;
+    $("#sumCount").textContent = v;
+    const pct = (v-6)/(40-6)*100;
+    countRange.style.background = "linear-gradient(90deg,var(--accent) 0%,var(--accent) "+pct+"%,#e7e2d9 "+pct+"%,#e7e2d9 100%)";
+    $$(".chip-btn[data-count]").forEach(b=>b.classList.toggle("on", Number(b.dataset.count)===v));
+    if(!from) { /* 保持静默 */ }
+  }
+  countInput.addEventListener("input", ()=>setCount(countInput.value));
+  countInput.addEventListener("blur", ()=>setCount(countInput.value));
+  countRange.addEventListener("input", ()=>setCount(countRange.value));
+  $$(".chip-btn[data-count]").forEach(b=>b.addEventListener("click", ()=>setCount(b.dataset.count)));
+
+  $$(".style-opt").forEach(opt=>opt.addEventListener("click", ()=>{
+    state.style = opt.dataset.style;
+    $$(".style-opt").forEach(o=>{
+      const on = o===opt;
+      o.classList.toggle("on", on);
+      o.setAttribute("aria-checked", on?"true":"false");
+    });
+    $("#sumStyle").textContent = STYLE_MAP[state.style];
+    $("#s2Style").textContent = STYLE_MAP[state.style];
+  }));
+
+  /* ================= 模板上传 ================= */
+  const tplSlot = $("#tplSlot");
+  function setStyleLock(locked){
+    const picker = $(".style-picker");
+    if(picker) picker.classList.toggle("locked", locked);
+    const hint = $("#styleLockHint");
+    if(hint) hint.hidden = !locked;
+    $$(".style-opt").forEach(o=>{
+      o.disabled = locked;
+      o.setAttribute("aria-disabled", locked ? "true" : "false");
+    });
+    const label = locked ? "跟随模板" : STYLE_MAP[state.style];
+    $("#sumStyle").textContent = label;
+    $("#s2Style").textContent = label;
+  }
+  function showTemplate(file){
+    const size = file.size ? (file.size/1024/1024).toFixed(1)+" MB" : "本地文件";
+    tplSlot.innerHTML = '<div class="tpl-file">'+
+      '<div class="tpl-thumb" aria-hidden="true"></div>'+
+      '<div class="tpl-meta"><b>'+esc(file.name)+'</b><span>'+esc(size)+' · 已解析 18 个版式</span></div>'+
+      '<button class="btn btn-sm" id="tplReplace">替换</button>'+
+      '<button class="ref-x" id="tplRemove" aria-label="移除模板"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'+
+    '</div>'+
+    '<div class="notice"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>模板已锁定，本次任务将直接套用。暂不支持模板库管理。</span></div>';
+    state.template = file.name;
+    $("#s2Tpl").textContent = "已上传";
+    setStyleLock(true);
+    $("#tplReplace").addEventListener("click", ()=>{
+      const input = document.createElement("input");
+      input.type = "file"; input.accept = ".pptx,.potx";
+      input.addEventListener("change", ()=>{ if(input.files[0]) handleTpl(input.files[0]); });
+      input.click();
+    });
+    $("#tplRemove").addEventListener("click", ()=>{
+      state.template = null;
+      $("#s2Tpl").textContent = "未上传";
+      setStyleLock(false);
+      renderDrop();
+      toast("已移除模板");
+    });
+    toast("模板上传成功，共识别 18 个版式");
+  }
+  function handleTpl(file){
+    if(!/\.(pptx|potx)$/i.test(file.name)){ toast("仅支持 .pptx / .potx 格式"); return; }
+    showTemplate(file);
+  }
+  function renderDrop(){
+    tplSlot.innerHTML = '<label class="drop" id="dropZone" for="tplInput">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>'+
+      '<div class="drop-label">拖入模板，或<b>点击上传</b></div>'+
+      '<div class="drop-hint">支持 .pptx / .potx · 建议 ≤ 30MB</div>'+
+      '<input type="file" id="tplInput" accept=".pptx,.potx" aria-label="上传 PPT 模板"></label>';
+    bindDrop();
+  }
+  function bindDrop(){
+    const input = $("#tplInput"), zone = $("#dropZone");
+    if(!input || !zone) return;
+    input.addEventListener("change", ()=>{ if(input.files[0]) handleTpl(input.files[0]); });
+    ["dragenter","dragover"].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.add("over"); }));
+    ["dragleave","drop"].forEach(ev=>zone.addEventListener(ev, e=>{ e.preventDefault(); zone.classList.remove("over"); }));
+    zone.addEventListener("drop", e=>{
+      const f = e.dataTransfer && e.dataTransfer.files[0];
+      if(f) handleTpl(f);
+    });
+  }
+  bindDrop();
+
+  /* ================= 大纲渲染 ================= */
+  function renderOutline(){
+    const list = $("#outlineList");
+    list.innerHTML = state.outline.map((s,i)=>
+      '<div class="slide-card" data-idx="'+i+'">'+
+        '<span class="idx">'+String(i+1).padStart(2,"0")+'</span>'+
+        '<div class="slide-main">'+
+          '<input class="slide-title-input" data-title="'+i+'" value="'+esc(s.title)+'" aria-label="第 '+(i+1)+' 页标题">'+
+          (s.lead ? '<div class="hint" style="font-size:11px;color:var(--ink-3);margin-top:3px;">'+esc(s.lead)+'</div>' : '')+
+          '<div class="points">'+ (s.points||[]).map(p=>'<div class="point"><span>'+esc(p)+'</span></div>').join("") +'</div>'+
+        '</div>'+
+        '<div class="slide-tools">'+
+          '<button class="mini-btn" data-move="up" data-i="'+i+'" aria-label="上移"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 15l6-6 6 6"/></svg></button>'+
+          '<button class="mini-btn" data-move="down" data-i="'+i+'" aria-label="下移"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg></button>'+
+          '<button class="mini-btn" data-del="'+i+'" aria-label="删除此页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>'+
+        '</div>'+
+      '</div>'
+    ).join("");
+    $("#outlineCount").textContent = "共 " + state.outline.length + " 页";
+    $("#s2Count").textContent = state.outline.length + " 页";
+  }
+  $("#outlineList").addEventListener("input", e=>{
+    const input = e.target.closest("[data-title]");
+    if(input){
+      state.outline[Number(input.dataset.title)].title = input.value;
+      $("#deckTitle").textContent = state.outline[0] ? state.outline[0].title : "";
+    }
+  });
+  $("#outlineList").addEventListener("click", e=>{
+    const mv = e.target.closest("[data-move]");
+    const del = e.target.closest("[data-del]");
+    if(mv){
+      const i = Number(mv.dataset.i), j = mv.dataset.move==="up" ? i-1 : i+1;
+      if(j<0 || j>=state.outline.length) return;
+      const t = state.outline[i]; state.outline[i]=state.outline[j]; state.outline[j]=t;
+      renderOutline();
+    }
+    if(del){
+      if(state.outline.length <= 3){ toast("至少保留 3 页，才能生成完整课堂 PPT"); return; }
+      state.outline.splice(Number(del.dataset.del),1);
+      renderOutline();
+      toast("已删除该页");
+    }
+  });
+  $("#btnAddSlide").addEventListener("click", ()=>{
+    state.outline.push({type:"content", kicker:"新增页", title:"新的一页 · 待补充标题", lead:"点击标题直接编辑", points:["补充要点 1","补充要点 2"]});
+    renderOutline();
+    const inputs = $$(".slide-title-input");
+    const last = inputs[inputs.length-1];
+    if(last){ last.focus(); last.select(); last.scrollIntoView({block:"center", behavior:"smooth"}); }
+    toast("已添加一页，直接改标题即可");
+  });
+
+  function addChat(box, text, who){
+    const el = document.createElement("div");
+    el.className = "chat-msg" + (who==="me" ? " me" : "");
+    el.textContent = text;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ================= 基础信息 → 大纲 ================= */
+  function readForm(){
+    return {
+      topic: $("#fTopic").value.trim() || "《荷塘月色》——通感与情感线索",
+      teacher: $("#fTeacher").value.trim() || "陈老师",
+      audience: $("#fAudience").value.trim() || "高一班级",
+      duration: $("#fDuration").value,
+      extra: $("#fExtra").value.trim()
+    };
+  }
+  function updateStep2Summary(){
+    const f = readForm();
+    $("#s2Topic").textContent = f.topic.length > 16 ? f.topic.slice(0,16)+"…" : f.topic;
+    $("#s2Style").textContent = state.template ? "跟随模板" : STYLE_MAP[state.style];
+    $("#s2Refs").textContent = (state.refs.length + state.localRefs.length) + " 份";
+    $("#s2Tpl").textContent = state.template ? "已上传" : "未上传";
+    $("#s2Count").textContent = state.outline.length + " 页";
+  }
+  function buildFromForm(){
+    const f = readForm();
+    state.outline = buildOutline(state.count, f.topic, f.extra || "");
+    $("#deckTitle").textContent = f.topic;
+    renderOutline();
+    updateStep2Summary();
+  }
+
+  /* ---- 大纲制作过程进度 ---- */
+  let outlineTimer = null;
+  function showOutlineReady(){
+    const gen = $("#outlineGen"), ready = $("#outlineReady");
+    if(gen) gen.hidden = true;
+    if(ready) ready.hidden = false;
+  }
+  function runOutlineGeneration(){
+    goStep(2);
+    $("#outlineReady").hidden = true;
+    $("#outlineGen").hidden = false;
+    const bar = $("#outlineGenBar"), text = $("#outlineGenText");
+    const stages = [
+      {p:22, t:"读取教案与教材内容…", g:0},
+      {p:50, t:"提取知识点与课标要求…", g:1},
+      {p:78, t:"编排课时结构与讲解顺序…", g:2},
+      {p:100, t:"整理大纲草稿…", g:3}
+    ];
+    const dots = $$("#outlineGen .gen-steps span");
+    dots.forEach(s=>s.classList.remove("on","done"));
+    bar.style.width = "0%";
+    text.textContent = stages[0].t;
+    let i = 0;
+    if(outlineTimer){ clearInterval(outlineTimer); outlineTimer = null; }
+    outlineTimer = setInterval(()=>{
+      if(i >= stages.length){
+        clearInterval(outlineTimer); outlineTimer = null;
+        setTimeout(()=>{
+          buildFromForm();
+          showOutlineReady();
+          toast("已生成 " + state.outline.length + " 页大纲草稿");
+        }, 300);
+        return;
+      }
+      const st = stages[i];
+      bar.style.width = st.p + "%";
+      text.textContent = st.t;
+      dots.forEach((s,idx)=>{
+        s.classList.toggle("done", idx < st.g);
+        s.classList.toggle("on", idx === st.g);
+      });
+      i++;
+    }, 620);
+  }
+
+  $("#btnToOutline").addEventListener("click", ()=>{
+    if(!$("#fTopic").value.trim()){ toast("先填写课题名称"); $("#fTopic").focus(); return; }
+    runOutlineGeneration();
+  });
+  $("#btnBackTo1").addEventListener("click", ()=>goStep(1));
+  $("#btnBackTo2").addEventListener("click", ()=>{ showOutlineReady(); goStep(2); });
+
+  $("#btnRegen").addEventListener("click", ()=>{
+    const el = $("#regenPrompt");
+    const p = el.value.trim();
+    if(!p){ toast("先写一句要求，例如「把精读拆成三页」"); el.focus(); return; }
+    const btn = $("#btnRegen");
+    btn.disabled = true; btn.textContent = "重排中…";
+    addChat($("#regenLog"), p, "me");
+    setTimeout(()=>{
+      let count = state.outline.length;
+      if(/精简|压缩|概括|少/.test(p)) count = Math.max(8, count - 2);
+      if(/详细|扩展|增加|多|拆/.test(p)) count = Math.min(24, count + 2);
+      const f = readForm();
+      state.outline = buildOutline(count, f.topic, p);
+      renderOutline();
+      $("#s2Count").textContent = count + " 页";
+      setCount(count);
+      addChat($("#regenLog"), "已按你的要求重排大纲，现为 " + state.outline.length + " 页" + (/拆|详细/.test(p) ? "，精读部分已拆分细化。" : "。"), "");
+      btn.disabled = false; btn.textContent = "重新生成大纲";
+      el.value = "";
+      toast("大纲已重新生成");
+    }, 900);
+  });
+
+  /* ================= PPT 渲染 ================= */
+  const STYLE_THEME = {
+    academic:{accent:"#b85c38", paper:"#fffdf9", ink:"#1d1b18"},
+    warm:{accent:"#a8522d", paper:"#fdf6ef", ink:"#2a201a"},
+    biz:{accent:"#3b5273", paper:"#f8fafc", ink:"#1a2432"},
+    mono:{accent:"#f0f0f0", paper:"#1b1b1b", ink:"#f2f2f2"}
+  };
+  function themeVars(){
+    const t = STYLE_THEME[state.style] || STYLE_THEME.academic;
+    return '--accent:'+t.accent+';--ink:'+t.ink+';--ink-2:'+(state.style==="mono" ? "#c8c8c8" : t.ink)+';--card:'+t.paper+';background:'+t.paper+';color:'+t.ink;
+  }
+  function slideHTML(s, total, index){
+    const num = '<span class="slide-num-tag">'+String(index+1).padStart(2,"0")+' / '+String(total).padStart(2,"0")+'</span>';
+    const kicker = s.kicker ? '<div class="slide-kicker">'+esc(s.kicker)+'</div>' : "";
+    const bullets = (s.points||[]).length
+      ? '<div class="slide-bullets">'+s.points.map(p=>'<div class="slide-bullet">'+esc(p)+'</div>').join("")+'</div>'
+      : "";
+    if(s.type==="cover"){
+      return '<div class="slide-body cover-body">'+
+        '<div class="slide-kicker">'+esc(s.kicker||"课堂教学")+'</div>'+
+        '<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+        '<div class="cover-rule"></div>'+
+        '<div class="cover-meta">'+esc(s.lead||"")+'</div>'+
+        '<div class="deco deco-a"></div><div class="deco deco-b"></div><div class="deco-lines"></div>'+
+        num+'</div>';
+    }
+    if(s.type==="quote"){
+      return '<div class="slide-body quote-body">'+
+        kicker+
+        '<h3 class="slide-h">「'+esc(s.title.replace(/^「|」$/g,""))+'」</h3>'+
+        '<div class="slide-p" style="margin-top:10px;">'+esc(s.lead||"")+'</div>'+
+        '<div class="deco deco-a"></div>'+num+'</div>';
+    }
+    if(s.type==="two"){
+      const pts = s.points||[];
+      const left = pts.slice(0, Math.ceil(pts.length/2) || 1);
+      const right = pts.slice(Math.ceil(pts.length/2) || 1);
+      return '<div class="slide-body">'+kicker+
+        '<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+        '<div class="slide-p">'+esc(s.lead||"")+'</div>'+
+        '<div class="two-col">'+
+          '<div class="col-box"><b>要点梳理</b>'+(left.length?left.map(p=>'<span>· '+esc(p)+'</span>').join(""):'<span>· </span>')+'</div>'+
+          '<div class="col-box"><b>课堂落点</b>'+(right.length?right.map(p=>'<span>· '+esc(p)+'</span>').join(""):'<span>· 结合学情补充</span>')+'</div>'+
+        '</div>'+num+'</div>';
+    }
+    if(s.type==="chart"){
+      return '<div class="slide-body">'+kicker+
+        '<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+        '<div class="slide-p">'+esc(s.lead||"")+'</div>'+
+        '<div class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i></div>'+
+        '<div class="slide-bullets">'+(s.points||[]).slice(0,2).map(p=>'<div class="slide-bullet">'+esc(p)+'</div>').join("")+'</div>'+
+        '<div class="deco deco-b"></div>'+num+'</div>';
+    }
+    if(s.type==="activity"){
+      const pts = s.points||[];
+      return '<div class="slide-body">'+kicker+
+        '<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+        '<div class="slide-p">'+esc(s.lead||"")+'</div>'+
+        '<div class="slide-grid">'+pts.map((p,i)=>'<div class="g-cell"><b>'+String(i+1).padStart(2,"0")+'</b>'+esc(p)+'</div>').join("")+'</div>'+
+        num+'</div>';
+    }
+    if(s.type==="end"){
+      return '<div class="slide-body cover-body" style="background:linear-gradient(160deg,#fbf7f0,#f3ece0);">'+
+        kicker+'<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+        '<div class="cover-rule"></div>'+
+        '<div class="cover-meta">'+esc(s.lead||"")+' · 谢谢</div>'+
+        '<div class="deco deco-a"></div><div class="deco deco-b"></div>'+num+'</div>';
+    }
+    return '<div class="slide-body">'+kicker+
+      '<h3 class="slide-h">'+esc(s.title)+'</h3>'+
+      '<div class="slide-p">'+esc(s.lead||"")+'</div>'+ bullets+
+      '<div class="deco deco-b"></div>'+num+'</div>';
+  }
+  function thumbArt(s){
+    if(s.type==="cover"){
+      return '<div style="height:100%;padding:7px;background:linear-gradient(150deg,#fbf7f0,#f0e8dc);display:flex;flex-direction:column;justify-content:center;gap:3px;">'+
+        '<i style="width:70%;height:5px;background:#3c352c;border-radius:1px;"></i>'+
+        '<i style="width:24px;height:1.5px;background:#b85c38;"></i>'+
+        '<i style="width:52%;height:2px;background:#cfc5b4;border-radius:1px;"></i></div>';
+    }
+    if(s.type==="quote"){
+      return '<div style="height:100%;padding:7px;background:#fbf7f2;display:flex;flex-direction:column;justify-content:center;gap:3px;">'+
+        '<i style="width:88%;height:3px;background:#8d7f6c;border-radius:1px;"></i>'+
+        '<i style="width:66%;height:3px;background:#b3a795;border-radius:1px;"></i></div>';
+    }
+    const rows = s.type==="activity" ? 4 : 3;
+    let lines = "";
+    for(let i=0;i<rows;i++){ lines += '<i style="width:'+(86-i*13)+'%;height:2px;background:#ded7ca;border-radius:1px;"></i>'; }
+    return '<div style="height:100%;padding:7px;background:#fff;display:flex;flex-direction:column;gap:3px;">'+
+      '<i style="width:16px;height:2px;background:#c98a68;border-radius:1px;"></i>'+
+      '<i style="width:64%;height:4px;background:#40392f;border-radius:1px;"></i>'+
+      '<div style="flex:1"></div>'+lines+'</div>';
+  }
+  function renderDeck(){
+    state.slides = state.outline.slice();
+    const list = $("#deckList");
+    list.innerHTML = state.slides.map((s,i)=>
+      '<button class="thumb'+(i===0?" on":"")+'" data-slide="'+i+'" role="option" aria-selected="'+(i===0)+'">'+
+        '<div class="thumb-canvas" aria-hidden="true">'+thumbArt(s)+'</div>'+
+        '<div class="thumb-meta"><span class="thumb-no">'+String(i+1).padStart(2,"0")+'</span><span class="thumb-t">'+esc(s.title)+'</span></div>'+
+      '</button>'
+    ).join("");
+    $("#sumSlides").textContent = state.slides.length;
+    $("#s2Count").textContent = state.slides.length + " 页";
+    selectSlide(0);
+  }
+  function selectSlide(i){
+    if(!state.slides.length) return;
+    state.current = Math.max(0, Math.min(state.slides.length-1, i));
+    const s = state.slides[state.current];
+    $("#previewFrame").innerHTML = slideHTML(s, state.slides.length, state.current);
+    $("#previewFrame").setAttribute("style", themeVars());
+    $("#previewMeta").textContent = "第 " + (state.current+1) + " 页 / 共 " + state.slides.length + " 页";
+    $$(".thumb").forEach((t,idx)=>{
+      const on = idx===state.current;
+      t.classList.toggle("on", on);
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      if(on && t.scrollIntoView) t.scrollIntoView({block:"nearest", behavior:"smooth"});
+    });
+  }
+  $("#deckList").addEventListener("click", e=>{
+    const t = e.target.closest("[data-slide]");
+    if(t) selectSlide(Number(t.dataset.slide));
+  });
+  $("#deckList").addEventListener("keydown", e=>{
+    if(e.key==="ArrowDown" || e.key==="ArrowUp"){
+      e.preventDefault();
+      selectSlide(state.current + (e.key==="ArrowDown"?1:-1));
+    }
+  });
+  $("#btnPrev").addEventListener("click", ()=>selectSlide(state.current-1));
+  $("#btnNext").addEventListener("click", ()=>selectSlide(state.current+1));
+
+  /* ================= 生成流程 ================= */
+  function runGeneration(){
+    goStep(3);
+    state.generated = false;
+    $("#genStage").hidden = false;
+    $("#deckStage").hidden = true;
+    const bar = $("#genBar"), text = $("#genText");
+    const stages = [
+      {p:18, t:"解析教材 Markdown 结构…", g:0},
+      {p:42, t:"抽取知识点与课标对应关系…", g:1},
+      {p:68, t:"匹配模板版式与配色…", g:2},
+      {p:92, t:"生成图文并茂的幻灯片…", g:3},
+      {p:100, t:"整理草稿，准备预览…", g:3}
+    ];
+    $$(".gen-steps span").forEach(s=>s.classList.remove("on","done"));
+    bar.style.width = "0%";
+    let i = 0;
+    const timer = setInterval(()=>{
+      if(i >= stages.length){
+        clearInterval(timer);
+        setTimeout(()=>{
+          state.generated = true;
+          renderDeck();
+          $("#genStage").hidden = true;
+          $("#deckStage").hidden = false;
+          $$(".gen-steps span").forEach(s=>s.classList.add("done"));
+          toast("草稿已生成，共 " + state.slides.length + " 页");
+        }, 320);
+        return;
+      }
+      const st = stages[i];
+      bar.style.width = st.p + "%";
+      text.textContent = st.t;
+      $$(".gen-steps span").forEach((s,idx)=>{
+        s.classList.toggle("done", idx < st.g);
+        s.classList.toggle("on", idx === st.g);
+      });
+      i++;
+    }, 620);
+  }
+  $("#btnGenerate").addEventListener("click", ()=>{
+    $$(".step")[2].classList.add("done");
+    runGeneration();
+  });
+  $("#btnBackOutline").addEventListener("click", ()=>{
+    state.generated = false;
+    showOutlineReady();
+    goStep(2);
+  });
+
+  /* ================= 单页修改 ================= */
+  $("#btnRevise").addEventListener("click", ()=>{
+    const el = $("#reviseInput");
+    const p = el.value.trim();
+    if(!p){ toast("先写一句修改要求"); el.focus(); return; }
+    const btn = $("#btnRevise");
+    btn.disabled = true; btn.textContent = "修改中…";
+    addChat($("#reviseLog"), p, "me");
+    const idx = state.current, s = state.slides[idx];
+    setTimeout(()=>{
+      if(/少|精简|太多|简短/.test(p) && s.points){
+        s.points = s.points.slice(0,2);
+        s.lead = (s.lead||"").slice(0,28);
+      }
+      if(/两栏|左右|对比/.test(p)) s.type = "two";
+      if(/引用|金句|一句/.test(p)) s.type = "quote";
+      if(/图|图表|数据/.test(p)) s.type = "chart";
+      if(/练习|活动|互动/.test(p)) s.type = "activity";
+      $("#previewFrame").innerHTML = slideHTML(s, state.slides.length, idx);
+      $("#previewFrame").setAttribute("style", themeVars());
+      addChat($("#reviseLog"), "已更新第 " + (idx+1) + " 页：已按你的要求调整版式与文字。", "");
+      btn.disabled = false; btn.textContent = "提交修改";
+      el.value = "";
+      toast("第 " + (idx+1) + " 页已更新");
+    }, 700);
+  });
+
+  /* ================= 下载 & 其他 ================= */
+  function downloadPPT(){
+    toast("正在导出 " + state.slides.length + " 页 PPT…");
+    const btns = [$("#btnDownloadTop"), $("#btnConfirmDownload")];
+    btns.forEach(b=>{ if(b){ b.disabled = true; } });
+    setTimeout(()=>{
+      btns.forEach(b=>{ if(b){ b.disabled = false; } });
+      $("#btnConfirmDownload").textContent = "已确认，再次下载";
+      toast("示例环境：已完成导出队列，正式版将直接下载 .pptx");
+    }, 1400);
+  }
+  $("#btnDownloadTop").addEventListener("click", downloadPPT);
+  $("#btnConfirmDownload").addEventListener("click", downloadPPT);
+
+  function resetTaskState(){
+    state.outline = []; state.slides = []; state.current = 0; state.generated = false;
+    state.localRefs = [];
+    $("#fTopic").value = ""; $("#fExtra").value = "";
+    $("#reviseInput").value = ""; $("#regenPrompt").value = "";
+    $("#regenLog").innerHTML = ""; $("#reviseLog").innerHTML = "";
+    $("#deckStage").hidden = true; $("#genStage").hidden = false;
+    renderOutline();
+    renderRefs();
+    showOutlineReady();
+  }
+  function newTaskFlow(){
+    if(state.generated && !confirm("新建任务会清空当前草稿，继续吗？")) return;
+    enterFlow();
+    resetTaskState();
+    goStep(1);
+    toast("已新建任务，请填写基础信息");
+    setTimeout(()=>$("#fTopic").focus(), 300);
+  }
+  $("#btnNewTask").addEventListener("click", newTaskFlow);
+  $("#btnNewTaskDraft").addEventListener("click", newTaskFlow);
+  $("#btnNewTaskDraft2").addEventListener("click", newTaskFlow);
+  $("#btnDraftHistory").addEventListener("click", ()=>showDrafts());
+
+  /* ---- 草稿卡片 ---- */
+  const DRAFTS = {
+    1:{count:12, style:"academic", topic:"《荷塘月色》——通感与情感线索", msg:"已打开草稿 v1（12 页）"},
+    2:{count:8, style:"mono", topic:"《荷塘月色》——精简版（40 分钟）", msg:"已打开已确认版本（8 页）"}
+  };
+  function openDraft(n){
+    const d = DRAFTS[n];
+    if(!d) return;
+    $("#fTopic").value = d.topic;
+    state.style = d.style;
+    $$(".style-opt").forEach(o=>{
+      const on = o.dataset.style === d.style;
+      o.classList.toggle("on", on);
+      o.setAttribute("aria-checked", on ? "true" : "false");
+    });
+    setCount(d.count);
+    setStyleLock(!!state.template);
+    buildFromForm();
+    enterFlow();
+    $("#genStage").hidden = true;
+    $("#deckStage").hidden = false;
+    state.generated = true;
+    renderDeck();
+    goStep(3);
+    toast(d.msg);
+  }
+  $$("[data-open-draft]").forEach(b=>b.addEventListener("click", ()=>openDraft(Number(b.dataset.openDraft))));
+  $$("[data-download-draft]").forEach(b=>b.addEventListener("click", ()=>{
+    const n = Number(b.dataset.downloadDraft);
+    toast("正在导出草稿 " + n + "…");
+    setTimeout(()=>toast("示例环境：导出任务已创建"), 900);
+  }));
+  $("#btnResetStep1").addEventListener("click", ()=>{
+    $("#fTopic").value = "《荷塘月色》——通感与情感线索";
+    $("#fTeacher").value = "陈老师"; $("#fDuration").value = "45 分钟";
+    $("#fAudience").value = "高一（3）班 · 语文基础中等偏上";
+    $("#fExtra").value = "";
+    setCount(12);
+    state.style = "academic";
+    $$(".style-opt").forEach(o=>{ const on=o.dataset.style==="academic"; o.classList.toggle("on",on); o.setAttribute("aria-checked", on?"true":"false"); });
+    state.refs = ["j1","c1"];
+    state.localRefs = [];
+    renderRefs();
+    setStyleLock(!!state.template);
+    toast("已恢复默认设置");
+  });
+
+  /* ================= 视图切换：草稿箱 / 创建流程 ================= */
+  function highlightNav(){
+    $$(".nav-item").forEach(b=>{
+      const on = b.dataset.feature === "ppt";
+      b.classList.toggle("active", on);
+      if(on) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+    });
+  }
+  function showDrafts(){
+    $("#view-drafts").hidden = false;
+    $("#view-ppt").hidden = true;
+    $("#view-wip").hidden = true;
+    $("#crumbCurrent").innerHTML = "<b>历史草稿</b>";
+    highlightNav();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+  function enterFlow(){
+    $("#view-drafts").hidden = true;
+    $("#view-wip").hidden = true;
+    $("#view-ppt").hidden = false;
+    $("#crumbCurrent").innerHTML = "<b>教案 + 教材转 PPT</b>";
+    highlightNav();
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+
+  const WIP_META = {
+    pdf:{eyebrow:"Workflow 01", title:"教材 PDF 转 MD", desc:"把扫描版或文字版教材转成结构化的 Markdown，保留章节、注释与图表位置。"},
+    word:{eyebrow:"Workflow 02", title:"教材 MD 转教案 Word", desc:"按课标与课时模板，把教材 Markdown 转成可直接使用的教案 Word 文档。"}
+  };
+  function switchFeature(name){
+    if(name === "ppt"){ showDrafts(); return; }
+    $("#view-drafts").hidden = true;
+    $("#view-ppt").hidden = true;
+    $("#view-wip").hidden = false;
+    $("#crumbCurrent").innerHTML = "<b>" + WIP_META[name].title + "</b>";
+    $("#wipEyebrow").textContent = WIP_META[name].eyebrow;
+    $("#wipTitle").textContent = WIP_META[name].title;
+    $("#wipDesc").textContent = WIP_META[name].desc + " 目前仍在筹备中，当前版本仅开放 PPT 生成流程。";
+    $$(".nav-item").forEach(b=>{
+      const on = b.dataset.feature === name;
+      b.classList.toggle("active", on);
+      if(on) b.setAttribute("aria-current","page"); else b.removeAttribute("aria-current");
+    });
+    window.scrollTo({top:0, behavior:"smooth"});
+  }
+  $$("[data-feature]").forEach(b=>b.addEventListener("click", ()=>switchFeature(b.dataset.feature)));
+
+  /* ================= 步骤条点击 ================= */
+  $$(".step").forEach(b=>b.addEventListener("click", ()=>{
+    const n = Number(b.dataset.step);
+    if(n === state.step) return;
+    if(n > 1 && !state.outline.length){
+      toast("先填写基础信息并生成大纲");
+      goStep(1);
+      return;
+    }
+    if(n === 3 && !state.generated){
+      runGeneration();
+      return;
+    }
+    if(n === 2 && state.generated){
+      // 回到大纲前保留已生成结果
+      showOutlineReady();
+      goStep(2);
+      return;
+    }
+    if(n === 2){
+      if($("#outlineGen").hidden === false) return;
+      showOutlineReady();
+      goStep(2);
+      return;
+    }
+    goStep(n);
+  }));
+
+  /* ================= 初始化 ================= */
+  setCount(12);
+  renderRefs();
+  $("#sumStyle").textContent = STYLE_MAP[state.style];
+  setStyleLock(false);
+  buildFromForm();
+  renderOutline();
+  renderDeck();
+  goStep(1);
+  showDrafts();
+  if(window.innerWidth <= 860){
+    const activeNav = $(".nav-item.active");
+    if(activeNav) activeNav.scrollIntoView({inline:"center", block:"nearest"});
+  }
+})();
+</script>
+</body>
+</html>

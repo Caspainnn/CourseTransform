@@ -1,0 +1,1554 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>知序工作台 · 教材与教案一键成稿</title>
+<style>
+/* ==== Design tokens ==== */
+:root{
+  --paper:#f7f5f1;
+  --card:#ffffff;
+  --ink:#1d1b18;
+  --ink-2:#4a4741;
+  --ink-3:#756f66;
+  --line:#e7e2d9;
+  --line-strong:#d8d2c6;
+  --accent:#b85c38;
+  --accent-dark:#9a4827;
+  --accent-soft:#f6ece6;
+  --sage:#5c7264;
+  --sage-soft:#eef2ee;
+  --shadow:0 1px 2px rgba(29,27,24,.04), 0 8px 24px rgba(29,27,24,.05);
+  --radius:14px;
+  --radius-sm:10px;
+  --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  --serif:Georgia,"Times New Roman","Songti SC",serif;
+  --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+button{font-family:inherit;font-size:inherit;cursor:pointer;}
+input,select,textarea{font-family:inherit;font-size:inherit;color:inherit;}
+a{color:inherit;text-decoration:none;}
+h1,h2,h3,h4,p{margin:0;}
+ul{margin:0;padding:0;list-style:none;}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+/* ==== App shell ==== */
+.app{display:flex;min-height:100vh;}
+
+/* ==== Sidebar ==== */
+.sidebar{
+  width:248px;flex:0 0 248px;
+  border-right:1px solid var(--line);
+  background:#fbfaf7;
+  padding:22px 18px 18px;
+  display:flex;flex-direction:column;gap:22px;
+  position:sticky;top:0;height:100vh;overflow-y:auto;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 4px 0;}
+.brand-mark{
+  width:32px;height:32px;border-radius:9px;
+  background:linear-gradient(150deg,#2a2722,#4a453c);
+  display:grid;place-items:center;flex:0 0 32px;
+}
+.brand-mark svg{width:17px;height:17px;stroke:#f7f5f1;}
+.brand-name{font-size:15px;font-weight:600;letter-spacing:.02em;}
+.brand-sub{font-size:11px;color:var(--ink-3);letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono);}
+
+.nav-group-label{
+  font-size:11px;letter-spacing:.12em;color:var(--ink-3);
+  text-transform:uppercase;padding:0 8px;margin-bottom:8px;font-family:var(--mono);
+}
+.nav{display:flex;flex-direction:column;gap:3px;}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  width:100%;text-align:left;border:0;background:transparent;
+  padding:10px 10px;border-radius:var(--radius-sm);
+  color:var(--ink-2);transition:background .16s ease,color .16s ease;
+  line-height:1.35;
+}
+.nav-item:hover{background:#f1eee7;color:var(--ink);}
+.nav-item svg{width:16px;height:16px;flex:0 0 16px;stroke:currentColor;}
+.nav-item.active{background:#fff;box-shadow:var(--shadow);color:var(--ink);font-weight:600;}
+.nav-item.active svg{stroke:var(--accent);}
+.nav-text{flex:1;min-width:0;}
+.nav-title{display:block;font-size:13px;}
+.nav-desc{display:block;font-size:11px;color:var(--ink-3);margin-top:1px;}
+.nav-item.active .nav-desc{color:var(--accent);}
+.badge-wip{
+  font-size:10px;padding:1px 6px;border-radius:20px;
+  background:var(--sage-soft);color:var(--sage);border:1px solid #dfe7df;
+  letter-spacing:.03em;white-space:nowrap;
+}
+.sidebar-foot{margin-top:auto;display:flex;flex-direction:column;gap:12px;}
+.side-note{
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:12px;background:#fff;
+}
+.side-note h4{font-size:12px;font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;}
+.side-note h4 svg{width:13px;height:13px;stroke:var(--accent);}
+.side-note p{font-size:11.5px;color:var(--ink-3);line-height:1.55;}
+.storage-line{margin-top:10px;height:4px;border-radius:4px;background:#efece5;overflow:hidden;}
+.storage-line i{display:block;height:100%;width:0%;background:var(--sage);}
+.user-chip{display:flex;align-items:center;gap:9px;padding:4px;}
+.avatar{
+  width:30px;height:30px;border-radius:50%;flex:0 0 30px;
+  background:var(--accent-soft);color:var(--accent);
+  display:grid;place-items:center;font-size:12px;font-weight:600;
+  border:1px solid #eadcd3;
+}
+.user-chip b{font-size:12.5px;font-weight:600;display:block;line-height:1.2;}
+.user-chip span{font-size:11px;color:var(--ink-3);}
+
+/* ==== Main column ==== */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:16px 40px;border-bottom:1px solid var(--line);
+  background:rgba(247,245,241,.85);backdrop-filter:blur(8px);
+  position:sticky;top:0;z-index:20;
+}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3);}
+.crumbs b{color:var(--ink-2);font-weight:500;}
+.crumbs .sep{color:var(--line-strong);}
+.topbar-right{display:flex;align-items:center;gap:14px;}
+.db-status{
+  display:flex;align-items:center;gap:7px;
+  font-size:11.5px;color:var(--sage);
+  border:1px solid #dbe4dc;background:var(--sage-soft);
+  padding:5px 11px;border-radius:20px;font-family:var(--mono);
+}
+.dot{width:6px;height:6px;border-radius:50%;background:#5f8a70;box-shadow:0 0 0 3px rgba(95,138,112,.16);}
+.icon-btn{
+  width:32px;height:32px;border-radius:8px;border:1px solid var(--line);
+  background:#fff;display:grid;place-items:center;color:var(--ink-2);
+}
+.icon-btn:hover{border-color:var(--line-strong);color:var(--ink);}
+.icon-btn svg{width:15px;height:15px;stroke:currentColor;}
+
+.content{padding:32px 40px 56px;max-width:1240px;width:100%;}
+
+/* ==== Page head ==== */
+.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:26px;flex-wrap:wrap;}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}
+.page-head h1{font-size:28px;line-height:1.25;letter-spacing:-.01em;font-weight:600;}
+.page-head h1 em{font-family:var(--serif);font-style:italic;font-weight:400;color:var(--accent);}
+.page-head p{color:var(--ink-3);margin-top:8px;max-width:56ch;font-size:13px;}
+.head-actions{display:flex;gap:10px;align-items:center;}
+
+/* ==== Buttons ==== */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border:1px solid var(--line-strong);background:#fff;color:var(--ink);
+  padding:9px 16px;border-radius:9px;font-size:13px;font-weight:500;
+  transition:all .16s ease;white-space:nowrap;
+}
+.btn svg{width:14px;height:14px;stroke:currentColor;}
+.btn:hover{border-color:#c4bcae;background:#fdfcfa;}
+.btn-primary{background:var(--ink);border-color:var(--ink);color:#fbfaf7;}
+.btn-primary:hover{background:#312d27;border-color:#312d27;}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#fff;}
+.btn-accent:hover{background:var(--accent-dark);border-color:var(--accent-dark);}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--ink-3);}
+.btn-ghost:hover{background:#f1eee7;color:var(--ink);}
+.btn-sm{padding:6px 11px;font-size:12px;border-radius:8px;}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.btn[disabled]:hover{background:#fff;}
+
+/* ==== Stepper ==== */
+.stepper{
+  display:flex;align-items:center;gap:0;
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px 20px;box-shadow:var(--shadow);margin-bottom:22px;
+}
+.step{
+  display:flex;align-items:center;gap:11px;flex:1;min-width:0;
+  background:none;border:0;padding:4px;text-align:left;color:var(--ink-3);
+}
+.step-num{
+  width:26px;height:26px;border-radius:50%;flex:0 0 26px;
+  display:grid;place-items:center;font-family:var(--mono);font-size:11.5px;
+  border:1px solid var(--line-strong);background:#fbfaf7;color:var(--ink-3);
+  transition:all .2s ease;
+}
+.step-label{font-size:12.5px;font-weight:500;line-height:1.25;display:block;white-space:nowrap;}
+.step-hint{font-size:11px;color:var(--ink-3);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.step.active{color:var(--ink);}
+.step.active .step-num{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-soft);}
+.step.active .step-hint{color:var(--accent);}
+.step.done .step-num{background:var(--sage-soft);border-color:#c9d8ce;color:var(--sage);}
+.step.done{color:var(--ink-2);}
+.step:hover .step-num{border-color:var(--accent);}
+.step-line{flex:0 0 28px;height:1px;background:var(--line-strong);margin:0 6px;}
+.step-line.done{background:#c9d8ce;}
+
+/* ==== Panels & cards ==== */
+.panel[hidden]{display:none;}
+.step-panels{animation:fadeUp .28s ease both;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.grid-2{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:20px;align-items:start;}
+.rail-col{position:sticky;top:84px;}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:22px;
+}
+.card + .card{margin-top:18px;}
+.card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px;}
+.card-title{font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.card-title svg{width:15px;height:15px;stroke:var(--accent);}
+.card-sub{font-size:11.5px;color:var(--ink-3);margin-top:3px;}
+.kicker{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink-3);text-transform:uppercase;}
+
+/* ==== Form ==== */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 18px;}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.field.full{grid-column:1/-1;}
+.field label{font-size:12px;font-weight:500;color:var(--ink-2);display:flex;align-items:center;gap:6px;}
+.field label .req{color:var(--accent);}
+.field .hint{font-size:11px;color:var(--ink-3);}
+.control{
+  border:1px solid var(--line-strong);background:#fdfcfa;border-radius:9px;
+  padding:9px 11px;font-size:13px;width:100%;transition:border-color .15s,box-shadow .15s;
+}
+.control:hover{border-color:#c9c2b5;}
+.control:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(184,92,56,.1);background:#fff;}
+textarea.control{resize:vertical;min-height:76px;line-height:1.6;}
+select.control{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23837d73' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 11px center;padding-right:30px;}
+.inline-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* page count control */
+.count-row{display:flex;align-items:center;gap:12px;}
+.count-input{width:74px;text-align:center;font-family:var(--mono);font-weight:600;}
+input[type="range"]{
+  -webkit-appearance:none;appearance:none;height:4px;border-radius:4px;
+  background:linear-gradient(90deg,var(--accent) 0%,var(--accent) 45%,#e7e2d9 45%,#e7e2d9 100%);
+  flex:1;outline-offset:6px;
+}
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:#fff;border:2.5px solid var(--accent);cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+input[type="range"]::-moz-range-thumb{
+  width:13px;height:13px;border-radius:50%;background:#fff;border:2.5px solid var(--accent);cursor:pointer;
+}
+.preset-row{display:flex;gap:6px;margin-top:2px;flex-wrap:wrap;}
+.chip-btn{
+  border:1px solid var(--line);background:#fdfcfa;color:var(--ink-2);
+  padding:3px 10px;border-radius:20px;font-size:11.5px;font-family:var(--mono);
+}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent);}
+.chip-btn.on{background:var(--accent-soft);border-color:#e3c9ba;color:var(--accent-dark);}
+
+/* style picker */
+.style-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+.style-opt{
+  position:relative;border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:8px;text-align:left;
+  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,background .15s ease;
+}
+.style-opt:hover{border-color:#c9c2b5;transform:translateY(-1px);}
+.style-opt.on{border-color:var(--accent);background:#fff;box-shadow:0 0 0 3px rgba(184,92,56,.09);}
+.style-opt.on::after{
+  content:"✓";position:absolute;top:4px;right:6px;font-size:10px;
+  width:15px;height:15px;border-radius:50%;background:var(--accent);color:#fff;
+  display:grid;place-items:center;line-height:1;
+}
+.style-thumb{
+  height:50px;border-radius:6px;overflow:hidden;display:flex;flex-direction:column;
+  gap:4px;padding:9px 10px;border:1px solid rgba(0,0,0,.05);margin-bottom:7px;
+}
+.st-a{background:#fbf9f4;} .st-b{background:#fdf0e6;} .st-c{background:#eef1f5;} .st-d{background:#1b1b1b;}
+.style-thumb i{display:block;height:3px;border-radius:2px;background:rgba(0,0,0,.28);}
+.style-thumb i.t{height:5px;width:62%;background:rgba(0,0,0,.5);}
+.style-thumb i.s{width:80%;opacity:.6;}
+.style-thumb i.x{width:44%;opacity:.4;}
+.st-b i{background:#a8522d;} .st-b i.t{background:#7d3a1e;}
+.st-c i{background:#3b5273;} .st-c i.t{background:#22334a;}
+.st-d i{background:#8e8e8e;} .st-d i.t{background:#f0f0f0;}
+.style-name{font-size:12px;font-weight:600;line-height:1.3;}
+.style-desc{font-size:10.5px;color:var(--ink-3);line-height:1.4;}
+
+/* ==== Right rail: references ==== */
+.ref-list{display:flex;flex-direction:column;gap:8px;}
+.ref-item{
+  display:flex;gap:10px;align-items:flex-start;
+  border:1px solid var(--line);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:10px 11px;
+}
+.ref-icon{
+  width:28px;height:34px;flex:0 0 28px;border-radius:4px;
+  background:#fff;border:1px solid var(--line-strong);
+  display:grid;place-items:center;color:var(--accent);position:relative;
+}
+.ref-icon::before{content:"";position:absolute;inset:0;border-radius:4px;background:linear-gradient(180deg,rgba(184,92,56,.06),transparent);}
+.ref-icon svg{width:14px;height:14px;stroke:currentColor;position:relative;}
+.ref-body{flex:1;min-width:0;}
+.ref-title{font-size:12.5px;font-weight:500;line-height:1.4;}
+.ref-meta{font-size:10.5px;color:var(--ink-3);display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;font-family:var(--mono);}
+.tag{
+  display:inline-flex;align-items:center;font-size:10px;padding:0 6px;
+  border-radius:4px;line-height:17px;letter-spacing:.02em;
+}
+.tag-jiaoan{background:var(--accent-soft);color:var(--accent-dark);}
+.tag-jiaocai{background:var(--sage-soft);color:#46604f;}
+.tag-local{background:#f1eee7;color:#6f695f;}
+.ref-x{
+  border:0;background:transparent;color:var(--ink-3);padding:2px;border-radius:4px;
+  display:grid;place-items:center;flex:0 0 auto;
+}
+.ref-x:hover{background:#f1eee7;color:var(--accent);}
+.ref-x svg{width:12px;height:12px;stroke:currentColor;}
+.empty-ref{
+  border:1px dashed var(--line-strong);border-radius:var(--radius-sm);
+  padding:18px 14px;text-align:center;color:var(--ink-3);font-size:12px;background:#fdfcfa;
+}
+.empty-ref svg{width:22px;height:22px;stroke:var(--line-strong);margin-bottom:6px;}
+
+/* ==== Reference actions (knowledge base / local upload) ==== */
+.ref-actions{
+  display:grid;grid-template-columns:1fr 1fr;
+  border:1px solid var(--line-strong);border-radius:9px;overflow:hidden;
+  margin-top:12px;background:#fff;
+}
+.ref-actions .btn{
+  border:0;border-radius:0;background:#fff;padding:9px 8px;font-size:12.5px;
+  justify-content:center;gap:6px;min-width:0;
+}
+.ref-actions .btn + .btn{border-left:1px solid var(--line);}
+.ref-actions .btn:hover{background:#fdfaf7;}
+.ref-actions .btn svg{width:13px;height:13px;}
+
+/* ==== Style lock (when template uploaded) ==== */
+.style-picker.locked .style-opt{opacity:.45;filter:grayscale(1);cursor:not-allowed;background:#faf8f4;}
+.style-picker.locked .style-opt:hover{transform:none;border-color:var(--line);box-shadow:none;}
+.style-picker.locked .style-opt.on::after{background:#a8a29a;}
+.lock-hint{
+  display:flex;gap:7px;align-items:flex-start;margin-top:9px;
+  font-size:11.5px;color:#8a6d3b;background:#fbf6e9;
+  border:1px solid #f0e5cc;border-radius:8px;padding:8px 10px;line-height:1.5;
+}
+.lock-hint[hidden]{display:none;}
+.lock-hint svg{width:12px;height:12px;flex:0 0 12px;margin-top:2px;stroke:#b58a3a;}
+
+/* ==== Upload ==== */
+.drop{
+  display:block;cursor:pointer;
+  border:1px dashed var(--line-strong);border-radius:var(--radius-sm);
+  background:#fdfcfa;padding:20px 16px;text-align:center;transition:all .15s ease;
+}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft);}
+.drop svg{width:22px;height:22px;stroke:var(--ink-3);margin-bottom:6px;}
+.drop-label{font-size:12.5px;color:var(--ink-2);}
+.drop-label b{color:var(--accent);font-weight:600;}
+.drop-hint{font-size:10.5px;color:var(--ink-3);margin-top:3px;font-family:var(--mono);}
+.drop input{display:none;}
+.tpl-file{
+  display:flex;align-items:center;gap:11px;border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:10px;background:#fff;
+}
+.tpl-thumb{
+  width:46px;height:34px;flex:0 0 46px;border-radius:4px;overflow:hidden;
+  background:linear-gradient(140deg,#2c2723,#5c5348);position:relative;
+  border:1px solid #2c2723;
+}
+.tpl-thumb::after{content:"";position:absolute;left:7px;top:9px;width:18px;height:2px;background:#e8ddc9;box-shadow:0 5px 0 -0.4px rgba(232,221,201,.55);}
+.tpl-meta b{display:block;font-size:12px;font-weight:600;}
+.tpl-meta span{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);}
+.tpl-file .btn{margin-left:auto;}
+.notice{
+  display:flex;gap:8px;align-items:flex-start;font-size:11px;color:var(--ink-3);
+  background:#fdfaf3;border:1px solid #f0e6d2;border-radius:8px;padding:8px 10px;margin-top:10px;line-height:1.5;
+}
+.notice svg{width:12px;height:12px;flex:0 0 12px;margin-top:2px;stroke:#b58a3a;}
+
+/* ==== Footer bar ==== */
+.bar{
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  margin-top:20px;padding:14px 18px;border-radius:var(--radius);
+  background:rgba(255,255,255,.95);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  border:1px solid var(--line);box-shadow:var(--shadow);
+  flex-wrap:wrap;
+  position:sticky;bottom:12px;z-index:15;
+}
+.bar-summary{font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.bar-summary b{color:var(--ink-2);font-weight:600;}
+.bar-actions{display:flex;gap:10px;align-items:center;}
+
+/* ==== Drafts view ==== */
+.draft-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+.draft-card{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column;
+  transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+}
+.draft-card:hover{transform:translateY(-2px);border-color:#d5cdbf;box-shadow:0 2px 4px rgba(29,27,24,.05),0 16px 34px rgba(29,27,24,.08);}
+.draft-thumb{
+  aspect-ratio:16/9;padding:20px 22px;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;justify-content:center;gap:6px;
+  border-bottom:1px solid var(--line);
+}
+.dt-a{background:linear-gradient(150deg,#fdfbf6,#f4ece1);}
+.dt-b{background:linear-gradient(150deg,#2b2723,#4a423a);border-bottom-color:#2b2723;}
+.dt-kicker{font-family:var(--mono);font-size:9px;letter-spacing:.18em;color:var(--accent);text-transform:uppercase;position:relative;}
+.dt-b .dt-kicker{color:#d8a98b;}
+.dt-title{font-size:19px;font-weight:600;letter-spacing:-.01em;color:var(--ink);position:relative;}
+.dt-b .dt-title{color:#f7f3ec;}
+.dt-rule{width:26px;height:2px;background:var(--accent);margin:1px 0 2px;position:relative;}
+.dt-sub{font-size:9.5px;color:var(--ink-3);font-family:var(--mono);position:relative;}
+.dt-b .dt-sub{color:#b6ada0;}
+.dt-num{position:absolute;right:18px;bottom:14px;font-family:var(--mono);font-size:8.5px;color:var(--ink-3);}
+.dt-b .dt-num{color:#9a9186;}
+.dt-deco{position:absolute;border-radius:50%;pointer-events:none;}
+.dt-a .dt-deco{width:48%;aspect-ratio:1;right:-13%;top:-24%;background:radial-gradient(circle at 35% 35%,rgba(184,92,56,.16),rgba(184,92,56,.02) 70%);}
+.dt-b .dt-deco{width:42%;aspect-ratio:1;left:-11%;bottom:-26%;background:radial-gradient(circle at 60% 40%,rgba(216,169,139,.2),rgba(216,169,139,.02) 70%);}
+.draft-body{padding:13px 15px 15px;display:flex;flex-direction:column;gap:6px;flex:1;}
+.draft-tags{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+.draft-body h3{font-size:13px;font-weight:600;line-height:1.45;letter-spacing:-.005em;}
+.draft-desc{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);letter-spacing:.01em;}
+.draft-meta{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--ink-3);}
+.draft-meta svg{width:10px;height:10px;stroke:var(--ink-3);}
+.draft-actions{display:flex;gap:7px;margin-top:auto;padding-top:11px;border-top:1px dashed var(--line);}
+.draft-actions .btn{flex:1;}
+
+/* 新建任务占位卡 */
+.draft-new{border:1px dashed var(--line-strong);box-shadow:none;background:transparent;}
+.draft-new:hover{transform:none;border-color:var(--accent);background:#fdfaf7;box-shadow:none;}
+.draft-new-inner{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;
+  border:0;background:transparent;padding:34px 22px;width:100%;border-radius:var(--radius);
+  color:var(--ink-3);text-align:center;
+}
+.dn-plus{
+  width:38px;height:38px;border-radius:50%;background:#fff;border:1px solid var(--line-strong);
+  display:grid;place-items:center;color:var(--accent);transition:all .16s ease;
+}
+.draft-new:hover .dn-plus{border-color:var(--accent);background:var(--accent);color:#fff;}
+.dn-plus svg{width:16px;height:16px;stroke:currentColor;}
+.draft-new b{font-size:13px;font-weight:600;color:var(--ink);}
+.draft-new-inner span:last-child{font-size:10.5px;line-height:1.55;max-width:20ch;}
+.draft-note{
+  margin-top:18px;display:flex;align-items:center;justify-content:center;gap:7px;
+  font-size:11.5px;color:var(--ink-3);font-family:var(--mono);
+}
+.draft-note svg{width:12px;height:12px;stroke:var(--line-strong);}
+
+/* ==== Placeholder for wip features ==== */
+.wip{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:64px 32px;text-align:center;
+}
+.wip svg{width:88px;height:88px;margin-bottom:18px;}
+.wip h2{font-size:19px;font-weight:600;}
+.wip p{font-size:13px;color:var(--ink-3);margin-top:8px;max-width:44ch;margin-inline:auto;}
+.wip .btn{margin-top:20px;}
+
+/* ==== Outline ==== */
+.outline-wrap{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:20px;align-items:start;}
+.outline-list{display:flex;flex-direction:column;gap:10px;}
+.slide-card{
+  display:flex;gap:13px;background:#fff;border:1px solid var(--line);
+  border-radius:var(--radius-sm);padding:13px 14px;box-shadow:0 1px 2px rgba(29,27,24,.03);
+  transition:border-color .15s,box-shadow .15s;
+}
+.slide-card:hover{border-color:#d3cbbc;}
+.slide-card .idx{
+  font-family:var(--mono);font-size:11px;color:var(--ink-3);
+  width:22px;flex:0 0 22px;padding-top:3px;text-align:right;
+}
+.slide-main{flex:1;min-width:0;}
+.slide-title-input{
+  border:0;border-bottom:1px solid transparent;background:transparent;
+  font-size:13.5px;font-weight:600;width:100%;padding:2px 0 4px;border-radius:0;
+}
+.slide-title-input:focus{outline:none;border-bottom-color:var(--accent);}
+.points{display:flex;flex-direction:column;gap:4px;margin-top:5px;}
+.point{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--ink-2);}
+.point::before{content:"";width:4px;height:4px;border-radius:50%;background:var(--line-strong);margin-top:8px;flex:0 0 4px;}
+.point span{flex:1;}
+.slide-tools{display:flex;gap:2px;flex:0 0 auto;align-items:flex-start;}
+.mini-btn{
+  border:1px solid transparent;background:transparent;color:var(--ink-3);
+  width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+}
+.mini-btn:hover{background:#f4f1ea;color:var(--ink);border-color:var(--line);}
+.mini-btn svg{width:13px;height:13px;stroke:currentColor;}
+.add-slide{
+  border:1px dashed var(--line-strong);background:transparent;border-radius:var(--radius-sm);
+  padding:11px;color:var(--ink-3);font-size:12.5px;width:100%;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.add-slide:hover{border-color:var(--accent);color:var(--accent);background:#fdfaf7;}
+.add-slide svg{width:14px;height:14px;stroke:currentColor;}
+
+.rail-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;}
+.rail-card + .rail-card{margin-top:16px;}
+.rail-card h3{font-size:13px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:7px;}
+.rail-card h3 svg{width:14px;height:14px;stroke:var(--accent);}
+.summary-rows{display:flex;flex-direction:column;gap:8px;}
+.summary-row{display:flex;justify-content:space-between;gap:12px;font-size:12px;padding-bottom:8px;border-bottom:1px dashed var(--line);}
+.summary-row:last-child{border-bottom:0;padding-bottom:0;}
+.summary-row span{color:var(--ink-3);}
+.summary-row b{font-weight:600;text-align:right;}
+.ai-box{background:#fbfaf7;border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px;}
+.ai-box textarea{border:0;background:transparent;width:100%;min-height:64px;resize:vertical;font-size:12px;line-height:1.6;}
+.ai-box textarea:focus{outline:none;}
+.ai-actions{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;}
+.ai-hint{font-size:10.5px;color:var(--ink-3);font-family:var(--mono);}
+.chat-log{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
+.chat-msg{font-size:11.5px;line-height:1.55;border-radius:8px;padding:7px 9px;background:#f4f1ea;color:var(--ink-2);}
+.chat-msg.me{background:var(--accent-soft);color:#7e3f24;}
+
+/* ==== Step 3: generation ==== */
+.gen-stage{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--shadow);padding:34px 28px;text-align:center;
+}
+.gen-ring{
+  width:64px;height:64px;border-radius:50%;margin:0 auto 16px;
+  border:2px solid var(--line);border-top-color:var(--accent);
+  animation:spin 1s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.gen-stage h2{font-size:17px;font-weight:600;}
+.gen-stage p{font-size:12px;color:var(--ink-3);margin-top:6px;}
+.progress{margin:22px auto 0;max-width:520px;height:5px;background:#f0ede6;border-radius:4px;overflow:hidden;}
+.progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#d89268);width:0;transition:width .4s ease;}
+.gen-steps{display:flex;justify-content:space-between;gap:10px;max-width:520px;margin:12px auto 0;}
+.gen-steps span{font-size:10.5px;color:var(--line-strong);font-family:var(--mono);}
+.gen-steps span.on{color:var(--accent);}
+.gen-steps span.done{color:var(--sage);}
+
+.deck-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:16px;}
+.deck-title{display:flex;align-items:center;gap:10px;}
+.deck-title h2{font-size:17px;font-weight:600;}
+.pill{
+  font-size:10.5px;font-family:var(--mono);padding:2px 8px;border-radius:20px;
+  background:var(--accent-soft);color:var(--accent-dark);border:1px solid #ecd6c9;
+}
+.pill.sage{background:var(--sage-soft);color:#46604f;border-color:#d7e3d9;}
+
+.deck-wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:20px;align-items:start;}
+.deck-list{
+  display:flex;flex-direction:column;gap:9px;max-height:640px;overflow:auto;
+  padding-right:4px;
+}
+.thumb{
+  border:1px solid var(--line);border-radius:8px;background:#fff;overflow:hidden;
+  display:flex;gap:8px;padding:6px;align-items:center;transition:all .15s ease;text-align:left;
+}
+.thumb:hover{border-color:#cfc7b8;}
+.thumb.on{border-color:var(--accent);box-shadow:0 0 0 2.5px rgba(184,92,56,.12);}
+.thumb-canvas{
+  flex:0 0 84px;height:47px;border-radius:4px;overflow:hidden;border:1px solid var(--line);
+  background:#fff;position:relative;
+}
+.thumb-no{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.thumb-t{font-size:10.5px;font-weight:600;line-height:1.35;display:block;margin-top:1px;}
+.thumb-meta{flex:1;min-width:0;}
+
+.preview-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;position:sticky;top:88px;}
+.preview-frame{
+  aspect-ratio:16/9;border-radius:10px;overflow:hidden;border:1px solid var(--line);
+  background:#fff;position:relative;
+}
+.preview-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+.preview-toolbar .t{font-size:12px;color:var(--ink-3);font-family:var(--mono);}
+.preview-toolbar .n{display:flex;gap:4px;}
+.slide-render{position:absolute;inset:0;}
+.slide-body{padding:8% 9%;height:100%;display:flex;flex-direction:column;position:relative;overflow:hidden;}
+.slide-kicker{font-family:var(--mono);font-size:max(8px,1.1cqw);letter-spacing:.18em;color:var(--accent);text-transform:uppercase;margin-bottom:8px;}
+.slide-h{font-size:min(23px,3.6cqw);line-height:1.25;font-weight:600;letter-spacing:-.01em;}
+.slide-p{font-size:min(11px,1.7cqw);color:var(--ink-2);margin-top:5px;line-height:1.55;}
+.slide-bullets{margin-top:auto;display:flex;flex-direction:column;gap:4px;}
+.slide-bullet{display:flex;gap:6px;font-size:min(10px,1.55cqw);color:var(--ink-2);line-height:1.5;}
+.slide-bullet::before{content:"";width:3px;height:3px;border-radius:50%;background:var(--accent);margin-top:.55em;flex:0 0 3px;}
+.deco{position:absolute;border-radius:50%;pointer-events:none;}
+.deco-a{width:38%;aspect-ratio:1;right:-8%;top:-18%;background:radial-gradient(circle at 30% 30%,rgba(184,92,56,.16),rgba(184,92,56,.02) 70%);}
+.deco-b{width:26%;aspect-ratio:1;left:-9%;bottom:-14%;background:radial-gradient(circle at 60% 40%,rgba(92,114,100,.16),rgba(92,114,100,.02) 70%);}
+.deco-lines{position:absolute;right:8%;bottom:8%;width:24%;height:32%;border-top:1px solid rgba(184,92,56,.35);border-right:1px solid rgba(184,92,56,.35);}
+.slide-num-tag{
+  position:absolute;right:6%;bottom:5%;font-family:var(--mono);font-size:min(8px,1.2cqw);color:var(--ink-3);
+}
+.cover-body{justify-content:center;}
+.cover-body .slide-h{font-size:min(30px,4.6cqw);}
+.cover-rule{width:34px;height:2px;background:var(--accent);margin:10px 0;}
+.cover-meta{font-size:min(9px,1.4cqw);color:var(--ink-3);font-family:var(--mono);letter-spacing:.04em;}
+.quote-body{justify-content:center;background:#fbf7f2;}
+.quote-body .slide-h{font-family:var(--serif);font-style:italic;font-weight:400;font-size:min(20px,3.2cqw);line-height:1.5;}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:6%;margin-top:auto;align-items:stretch;}
+.col-box{border:1px solid var(--line);border-radius:6px;padding:7% 6%;background:#fdfcfa;}
+.col-box b{font-size:min(9.5px,1.5cqw);display:block;margin-bottom:3px;}
+.col-box span{font-size:min(8.5px,1.3cqw);color:var(--ink-3);line-height:1.5;display:block;}
+.bars{display:flex;align-items:flex-end;gap:5%;height:34%;margin-top:auto;}
+.bars i{flex:1;background:linear-gradient(180deg,#c9774f,#e8c4b1);border-radius:2px 2px 0 0;}
+.bars i:nth-child(2){height:74%;} .bars i:nth-child(1){height:48%;} .bars i:nth-child(3){height:92%;}
+.bars i:nth-child(4){height:60%;}
+.slide-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:auto;}
+.g-cell{border:1px solid var(--line);border-radius:4px;padding:5px 6px;font-size:min(8px,1.25cqw);color:var(--ink-2);background:#fdfcfa;line-height:1.4;}
+.g-cell b{color:var(--accent);font-family:var(--mono);margin-right:3px;}
+
+.preview-revise{border-top:1px solid var(--line);margin-top:14px;padding-top:14px;}
+.preview-revise label{font-size:12px;font-weight:600;display:block;margin-bottom:6px;}
+.revise-row{display:flex;gap:8px;align-items:flex-end;}
+.revise-row textarea{flex:1;min-height:44px;max-height:100px;resize:vertical;font-size:12px;padding:7px 9px;line-height:1.5;}
+.deck-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap;}
+
+/* ==== Modal ==== */
+.modal{
+  position:fixed;inset:0;z-index:60;display:none;
+  background:rgba(24,22,19,.38);backdrop-filter:blur(3px);
+  padding:24px;overflow:auto;
+}
+.modal.open{display:flex;align-items:center;justify-content:center;}
+.modal-card{
+  background:#fff;border-radius:16px;width:min(920px,100%);
+  box-shadow:0 24px 60px rgba(24,22,19,.24);
+  display:flex;flex-direction:column;max-height:86vh;overflow:hidden;
+  animation:pop .2s ease both;
+}
+@keyframes pop{from{opacity:0;transform:translateY(10px) scale(.99);}to{opacity:1;transform:none;}}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:20px 22px;border-bottom:1px solid var(--line);}
+.modal-head h2{font-size:16px;font-weight:600;}
+.modal-head p{font-size:11.5px;color:var(--ink-3);margin-top:2px;}
+.modal-body{display:grid;grid-template-columns:200px minmax(0,1fr);gap:0;min-height:0;flex:1;}
+.kb-side{border-right:1px solid var(--line);padding:14px;background:#fbfaf7;display:flex;flex-direction:column;gap:4px;}
+.kb-tab{
+  display:flex;align-items:center;gap:8px;border:0;background:transparent;
+  padding:9px 10px;border-radius:8px;text-align:left;color:var(--ink-2);font-size:12.5px;
+}
+.kb-tab svg{width:14px;height:14px;stroke:currentColor;}
+.kb-tab:hover{background:#f1eee7;}
+.kb-tab.on{background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.05);font-weight:600;color:var(--ink);}
+.kb-tab.on svg{stroke:var(--accent);}
+.kb-tab .count{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);}
+.kb-main{padding:16px 18px;display:flex;flex-direction:column;min-height:0;}
+.kb-search{display:flex;gap:8px;margin-bottom:12px;}
+.kb-search input{flex:1;}
+.kb-list{overflow:auto;display:flex;flex-direction:column;gap:7px;padding-right:4px;flex:1;}
+.kb-row{
+  display:flex;gap:11px;align-items:flex-start;border:1px solid var(--line);
+  border-radius:10px;padding:10px 11px;background:#fdfcfa;cursor:pointer;transition:all .14s;
+}
+.kb-row:hover{border-color:#cfc7b8;background:#fff;}
+.kb-row.on{border-color:var(--accent);background:#fdf8f5;}
+.kb-check{
+  width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line-strong);
+  flex:0 0 16px;margin-top:1px;display:grid;place-items:center;background:#fff;
+}
+.kb-check svg{width:10px;height:10px;stroke:#fff;opacity:0;}
+.kb-row.on .kb-check{background:var(--accent);border-color:var(--accent);}
+.kb-row.on .kb-check svg{opacity:1;}
+.kb-row .ref-body b{font-size:12.5px;font-weight:600;display:block;line-height:1.4;}
+.kb-row .ref-body p{font-size:11px;color:var(--ink-3);margin-top:2px;line-height:1.45;}
+.kb-row .kb-side-meta{font-family:var(--mono);font-size:10px;color:var(--ink-3);white-space:nowrap;}
+.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 22px;border-top:1px solid var(--line);background:#fbfaf7;}
+.modal-foot .picked{font-size:12px;color:var(--ink-3);}
+.modal-foot .picked b{color:var(--accent);font-family:var(--mono);}
+
+/* ==== Toast ==== */
+.toast-wrap{position:fixed;right:22px;bottom:22px;z-index:80;display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
+.toast{
+  background:#221f1b;color:#f7f5f1;font-size:12.5px;padding:10px 14px;border-radius:9px;
+  box-shadow:0 10px 28px rgba(0,0,0,.2);display:flex;align-items:center;gap:8px;
+  animation:toastIn .2s ease both;
+}
+.toast svg{width:14px;height:14px;stroke:#9fc4ab;}
+@keyframes toastIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+.toast.out{animation:toastOut .25s ease both;}
+@keyframes toastOut{to{opacity:0;transform:translateY(6px);}}
+
+/* ==== Responsive ==== */
+@media (max-width:1080px){
+  .grid-2{grid-template-columns:1fr;}
+  .rail-col{position:static;}
+  .draft-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .outline-wrap{grid-template-columns:1fr;}
+  .deck-wrap{grid-template-columns:1fr;}
+  .deck-list{flex-direction:row;max-height:none;overflow-x:auto;padding-bottom:6px;}
+  .thumb{flex:0 0 168px;}
+  .preview-card{position:static;}
+  .style-picker{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:860px){
+  .sidebar{
+    width:100%;flex:0 0 auto;height:auto;position:static;
+    flex-direction:column;gap:14px;padding:14px 16px;
+    border-right:0;border-bottom:1px solid var(--line);
+  }
+  .app{flex-direction:column;}
+  .nav{flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:2px;}
+  .nav-item{flex:0 0 auto;width:auto;background:#fff;border:1px solid var(--line);}
+  .nav-desc{display:none;}
+  .sidebar-foot{display:none;}
+  .content{padding:22px 18px 44px;}
+  .topbar{padding:12px 18px;position:static;}
+  .page-head h1{font-size:23px;}
+  .form-grid{grid-template-columns:1fr;}
+  .modal-body{grid-template-columns:1fr;}
+  .kb-side{flex-direction:row;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;}
+  .draft-grid{grid-template-columns:1fr;}
+  .step-hint{display:none;}
+  .step-line{flex:0 0 12px;}
+  .step{padding:4px 2px;}
+  .deck-wrap{grid-template-columns:1fr;}
+}
+@media (max-width:560px){
+  body{overflow-x:hidden;}
+  .page-head h1{font-size:20px;}
+  .head-actions{width:100%;flex-direction:column;align-items:stretch;}
+  .head-actions .btn{width:100%;min-width:0;}
+  .topbar{flex-wrap:wrap;gap:8px;padding:10px 16px;}
+  .crumbs{font-size:11px;min-width:0;flex-wrap:wrap;}
+  .db-status{font-size:10px;padding:4px 8px;}
+  .stepper{padding:12px 10px;}
+  .step{gap:6px;padding:2px;}
+  .step-num{width:22px;height:22px;flex:0 0 22px;font-size:10px;}
+  .step-label{font-size:10.5px;line-height:1.25;white-space:normal;}
+  .step-line{flex:0 0 8px;margin:0 2px;}
+  .bar{flex-direction:column;align-items:stretch;position:static;bottom:auto;}
+  .bar-actions{width:100%;display:flex;gap:8px;}
+  .bar-actions .btn{flex:1;white-space:normal;line-height:1.3;padding:9px 10px;font-size:12px;}
+  .inline-2{grid-template-columns:1fr;}
+  .style-picker{grid-template-columns:1fr;}
+  .deck-head .head-actions{width:auto;}
+  .revise-row{flex-direction:column;align-items:stretch;}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none !important;transition:none !important;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ==== Sidebar ==== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7M8 11h5"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">知序工作台</div>
+        <div class="brand-sub">Teach&nbsp;Studio</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="nav-group-label">转化工具</div>
+      <nav class="nav" aria-label="功能导航">
+        <button class="nav-item" data-feature="pdf">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M9 13h6M9 17h4"/></svg>
+          <span class="nav-text"><span class="nav-title">教材 PDF 转 MD</span><span class="nav-desc">扫描版 / 文字版识别</span></span>
+          <span class="badge-wip">已接入</span>
+        </button>
+        <button class="nav-item" data-feature="word">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/><path d="M8.5 12l1.3 5 1.7-3.4 1.7 3.4 1.3-5"/></svg>
+          <span class="nav-text"><span class="nav-title">教材 MD 转教案 Word</span><span class="nav-desc">按课标生成课时教案</span></span>
+          <span class="badge-wip">已接入</span>
+        </button>
+        <button class="nav-item active" data-feature="ppt" aria-current="page">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M12 16v4M8 20h8"/><path d="M7.5 12.5l2.5-3 2 2.5 2-3.5 2.5 4"/></svg>
+          <span class="nav-text"><span class="nav-title">教案 + 教材转 PPT</span><span class="nav-desc">三步成稿 · 可反复修改</span></span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="sidebar-foot">
+      <div class="side-note">
+        <h4><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v2M12 19v2M5 12H3M21 12h-2M6 6 4.5 4.5M19.5 19.5 18 18M18 6l1.5-1.5M4.5 19.5 6 18"/><circle cx="12" cy="12" r="4"/></svg>本机任务存储</h4>
+        <p>任务与资料仅保存在本机</p>
+        <div class="storage-line" aria-hidden="true"><i></i></div>
+      </div>
+      <div class="user-chip">
+        <div class="avatar" aria-hidden="true">本</div>
+        <div><b>本机用户</b><span>本地教学工作台</span></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ==== Main ==== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <span>工作台</span><span class="sep">/</span>
+        <span id="crumbCurrent"><b>教案 + 教材转 PPT</b></span>
+      </div>
+      <div class="topbar-right">
+        <span class="db-status" title="已连接教学资源库">
+          <span class="dot" aria-hidden="true"></span>知识库连接中…
+        </span>
+        <button class="icon-btn" aria-label="帮助与快捷键">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.6 9.2a2.4 2.4 0 1 1 3.2 2.3c-.6.2-.9.8-.9 1.4v.3"/><path d="M12 17h.01"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+      <div id="taskStatus" class="notice" role="status" hidden></div>
+      <details id="taskError" class="side-note" hidden style="margin-bottom:12px"><summary>技术详情</summary><pre id="taskErrorText" style="white-space:pre-wrap;overflow-wrap:anywhere;font-size:11px"></pre></details>
+      <div id="taskActions" class="head-actions" hidden>
+        <button class="btn btn-sm" id="retryTask">继续制作</button>
+        <button class="btn btn-sm" id="cancelTask">取消排队</button>
+      </div>
+
+      <!-- ===== Feature: Drafts (default) ===== -->
+      <div id="view-drafts">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Drafts / 草稿箱</div>
+            <h1>历史<em>草稿</em></h1>
+            <p>所有生成过的 PPT 都留在这里。草稿可随时继续修改，确认后再导出，历史版本不会被覆盖。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn btn-accent" id="btnNewTaskDraft">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建任务
+            </button>
+          </div>
+        </div>
+
+        <div class="draft-grid">
+          <div id="draftItems" style="display:contents"></div>
+          <article class="draft-card draft-new">
+            <button class="draft-new-inner" id="btnNewTaskDraft2">
+              <span class="dn-plus" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </span>
+              <b>新建 PPT 任务</b>
+              <span>从教案与教材开始，三步生成可讲解的课件</span>
+            </button>
+          </article>
+        </div>
+
+        <div class="draft-note">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+          任务与历史版本保存在本机，制作过程会自动保存
+        </div>
+      </div>
+
+      <!-- ===== Feature: PPT (main) ===== -->
+      <div id="view-ppt" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Workflow 03 / Presentation</div>
+            <h1>教案与教材，<em>一键成稿</em></h1>
+            <p>引用知识库中的教案与教材，套用学校模板，三步生成可讲解的课堂 PPT。全程可改，草稿确认后才导出。</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn" id="btnDraftHistory">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+              历史草稿
+            </button>
+            <button class="btn" id="btnNewTask">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              新建任务
+            </button>
+          </div>
+        </div>
+
+        <!-- Stepper -->
+        <div class="stepper" role="tablist" aria-label="制作流程">
+          <button class="step active" data-step="1" role="tab" aria-selected="true">
+            <span class="step-num">01</span>
+            <span class="step-label">基础信息<span class="step-hint">页数 · 风格 · 参考资料</span></span>
+          </button>
+          <span class="step-line" aria-hidden="true"></span>
+          <button class="step" data-step="2" role="tab" aria-selected="false">
+            <span class="step-num">02</span>
+            <span class="step-label">大纲制作<span class="step-hint">修改 · 提要求重制</span></span>
+          </button>
+          <span class="step-line" aria-hidden="true"></span>
+          <button class="step" data-step="3" role="tab" aria-selected="false">
+            <span class="step-num">03</span>
+            <span class="step-label">生成 PPT<span class="step-hint">预览 · 修改 · 下载</span></span>
+          </button>
+        </div>
+
+        <!-- ===== Step 1 ===== -->
+        <section class="panel" id="panel-1" role="tabpanel" aria-label="基础信息">
+          <div class="grid-2">
+            <div>
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h7"/></svg>
+                      基础信息
+                    </div>
+                    <div class="card-sub">这些信息会写进封面与页脚，并影响大纲详略</div>
+                  </div>
+                  <span class="kicker">Step 01</span>
+                </div>
+
+                <div class="form-grid">
+                  <div class="field full">
+                    <label for="fTopic">课题名称 <span class="req">*</span></label>
+                    <input class="control" id="fTopic" type="text" value="" placeholder="例如：《荷塘月色》第一课时">
+                  </div>
+
+                  <div class="field full">
+                    <label for="fCount">PPT 页数</label>
+                    <div class="count-row">
+                      <input class="control count-input" id="fCount" type="number" min="6" max="40" value="12" aria-label="PPT 页数">
+                      <input type="range" id="fCountRange" min="6" max="40" value="12" aria-label="拖动调整页数">
+                    </div>
+                    <div class="preset-row" role="group" aria-label="页数预设">
+                      <button class="chip-btn" data-count="8">8 页 · 精讲</button>
+                      <button class="chip-btn on" data-count="12">12 页 · 常规</button>
+                      <button class="chip-btn" data-count="18">18 页 · 完整</button>
+                      <button class="chip-btn" data-count="24">24 页 · 单元</button>
+                    </div>
+                  </div>
+
+                  <div class="field full">
+                    <label>视觉风格</label>
+                    <div class="style-picker" role="radiogroup" aria-label="视觉风格">
+                      <button class="style-opt on" data-style="academic" role="radio" aria-checked="true">
+                        <span class="style-thumb st-a" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">简约学术</span>
+                        <span class="style-desc">留白 · 宋体标题</span>
+                      </button>
+                      <button class="style-opt" data-style="warm" role="radio" aria-checked="false">
+                        <span class="style-thumb st-b" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">温暖人文</span>
+                        <span class="style-desc">暖色 · 图文并重</span>
+                      </button>
+                      <button class="style-opt" data-style="biz" role="radio" aria-checked="false">
+                        <span class="style-thumb st-c" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">严谨清晰</span>
+                        <span class="style-desc">蓝灰 · 结构化</span>
+                      </button>
+                      <button class="style-opt" data-style="mono" role="radio" aria-checked="false">
+                        <span class="style-thumb st-d" aria-hidden="true"><i class="t"></i><i></i><i class="s"></i><i class="x"></i></span>
+                        <span class="style-name">极简黑白</span>
+                        <span class="style-desc">深色 · 投影友好</span>
+                      </button>
+                    </div>
+                    <div class="lock-hint" id="styleLockHint" hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                      <span>已上传 PPT 模板，视觉风格由模板决定，风格选项暂不可用。</span>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label for="fTeacher">授课人</label>
+                    <input class="control" id="fTeacher" type="text" value="">
+                  </div>
+                  <div class="field">
+                    <label for="fDuration">课时长度</label>
+                    <select class="control" id="fDuration">
+                      <option>40 分钟</option><option selected>45 分钟</option><option>60 分钟</option><option>90 分钟（两课时）</option>
+                    </select>
+                  </div>
+
+                  <div class="field full">
+                    <label for="fAudience">面向对象</label>
+                    <input class="control" id="fAudience" type="text" value="">
+                    <span class="hint">描述班级水平，生成时会自动调整术语密度与提问难度</span>
+                  </div>
+
+                  <div class="field full">
+                    <label for="fExtra">补充要求 <span class="hint">（可选）</span></label>
+                    <textarea class="control" id="fExtra" rows="3" placeholder="例如：重点讲通感手法；加入一段朗诵音频页；结尾留 5 分钟课堂练习……"></textarea>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- right rail -->
+            <div class="rail-col">
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7M8 11h5"/></svg>
+                      参考资料
+                    </div>
+                    <div class="card-sub">来自教学资源库，可多选</div>
+                  </div>
+                  <span class="pill sage" id="knowledgeConnection">连接中</span>
+                </div>
+                <div class="ref-list" id="refList">
+                  <!-- JS renders picked references -->
+                </div>
+                <div class="ref-actions">
+                  <button class="btn" id="btnOpenKB">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5 21 21"/></svg>
+                    从知识库选择
+                  </button>
+                  <button class="btn" id="btnUploadRef">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5"/><path d="m7.5 9.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                    本地上传
+                  </button>
+                </div>
+                <input type="file" id="refFileInput" accept=".doc,.docx,.pdf,.md,.txt" multiple hidden>
+              </div>
+
+              <div class="card">
+                <div class="card-head">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+                      PPT 模板
+                    </div>
+                    <div class="card-sub">仅需上传一次，本次直接套用</div>
+                  </div>
+                  <span class="kicker">.pptx</span>
+                </div>
+                <div id="tplSlot">
+                  <label class="drop" id="dropZone" for="tplInput">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                    <div class="drop-label">拖入模板，或<b>点击上传</b></div>
+                    <div class="drop-hint">支持 .pptx / .potx · 建议 ≤ 30MB</div>
+                    <input type="file" id="tplInput" accept=".pptx,.potx" aria-label="上传 PPT 模板">
+                  </label>
+                </div>
+                <div class="notice">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+                  <span>模板只用于版式与配色，不会覆盖内容。模板库与多人共享功能稍后开放。</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <div class="bar-summary">
+              <span>已选 <b id="sumRefs">0</b> 份参考资料</span><span aria-hidden="true">·</span>
+              <span>页数 <b id="sumCount">12</b></span><span aria-hidden="true">·</span>
+              <span>风格 <b id="sumStyle">简约学术</b></span>
+            </div>
+            <div class="bar-actions">
+              <button class="btn btn-ghost" id="btnResetStep1">重置</button>
+              <button class="btn btn-accent" id="btnToOutline">
+                保存并生成大纲
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Step 2 ===== -->
+        <section class="panel" id="panel-2" hidden role="tabpanel" aria-label="大纲制作">
+          <div class="gen-stage" id="outlineGen" hidden>
+            <div class="gen-ring" aria-hidden="true"></div>
+            <h2>正在制作大纲</h2>
+            <p id="outlineGenText">读取教案与教材…</p>
+            <div class="progress"><i id="outlineGenBar"></i></div>
+            <div class="gen-steps">
+              <span data-og="0">读取教案与教材</span><span data-og="1">提取知识点</span><span data-og="2">编排课时结构</span><span data-og="3">排列幻灯片顺序</span>
+            </div>
+          </div>
+          <div id="outlineReady">
+          <div class="outline-wrap">
+            <div>
+              <div class="card" style="padding:18px 20px;">
+                <div class="card-head" style="margin-bottom:14px;">
+                  <div>
+                    <div class="card-title">
+                      <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+                      大纲草稿
+                    </div>
+                    <div class="card-sub">标题可直接编辑，顺序可调整，改动会保留到生成结果</div>
+                  </div>
+                  <span class="pill" id="outlineCount">共 12 页</span>
+                </div>
+                <div class="outline-list" id="outlineList"><!-- JS renders --></div>
+                <button class="add-slide" id="btnAddSlide">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                  添加一页
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div class="rail-card">
+                <h3>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><path d="M12 3v18M5 8h14"/></svg>
+                  生成参数
+                </h3>
+                <div class="summary-rows">
+                  <div class="summary-row"><span>课题</span><b id="s2Topic">—</b></div>
+                  <div class="summary-row"><span>页数</span><b id="s2Count">12 页</b></div>
+                  <div class="summary-row"><span>风格</span><b id="s2Style">简约学术</b></div>
+                  <div class="summary-row"><span>参考资料</span><b id="s2Refs">0 份</b></div>
+                  <div class="summary-row"><span>模板</span><b id="s2Tpl">未上传</b></div>
+                </div>
+              </div>
+
+              <div class="rail-card">
+                <h3>
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3Z"/><path d="M18 16l.9 2.1L21 19l-2.1.9L18 22l-.9-2.1L15 19l2.1-.9L18 16Z"/></svg>
+                  提要求重新制作
+                </h3>
+                <div class="ai-box">
+                  <textarea id="regenPrompt" placeholder="例如：把精读部分拆成三页，每页只讲一个手法；最后一页改成课堂检测。"></textarea>
+                  <div class="ai-actions">
+                    <span class="ai-hint">整稿重排</span>
+                    <button class="btn btn-primary btn-sm" id="btnRegen">重新生成大纲</button>
+                  </div>
+                </div>
+                <div class="chat-log" id="regenLog"></div>
+              </div>
+
+              <div class="rail-card" style="background:#fbfaf7;box-shadow:none;">
+                <h3><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>小提示</h3>
+                <p style="font-size:11.5px;color:var(--ink-3);line-height:1.65;">大纲确认后才会进入生成。生成结果不满意，可以在第三步直接提要求改单页，无需从头再来。</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar">
+            <div class="bar-summary"><span>大纲已就绪；制作耗时随页数、模型与质检情况变化</span></div>
+            <div class="bar-actions">
+              <button class="btn" id="btnBackTo1">上一步</button>
+              <button class="btn btn-accent" id="btnGenerate">
+                确认大纲，生成 PPT
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+              </button>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <!-- ===== Step 3 ===== -->
+        <section class="panel" id="panel-3" hidden role="tabpanel" aria-label="生成 PPT">
+          <div id="genStage" class="gen-stage">
+            <div class="gen-ring" aria-hidden="true"></div>
+            <h2>正在生成草稿 PPT</h2>
+            <p id="genText">解析教材 Markdown 结构…</p>
+            <div class="progress"><i id="genBar"></i></div>
+            <div class="gen-steps">
+              <span data-g="0">解析教材</span><span data-g="1">抽取知识点</span><span data-g="2">匹配模板版式</span><span data-g="3">生成图文页</span>
+            </div>
+          </div>
+
+          <div id="deckStage" hidden>
+            <div class="deck-head">
+              <div class="deck-title">
+                <h2 id="deckTitle">课件预览</h2>
+                <span class="pill" id="deckVersion">尚未生成</span>
+              </div>
+              <div class="head-actions">
+                <button class="btn btn-sm" id="btnBackOutline">返回大纲</button>
+                <button class="btn btn-sm btn-primary" id="btnDownloadTop">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="m7.5 9.5 4.5 4.5 4.5-4.5"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1"/></svg>
+                  下载 PPT
+                </button>
+              </div>
+            </div>
+
+            <div class="deck-wrap">
+              <div class="deck-list" id="deckList" role="listbox" aria-label="幻灯片列表"><!-- JS renders --></div>
+
+              <div class="preview-card">
+                <div class="preview-toolbar">
+                  <span class="t" id="previewMeta">第 1 页 / 共 12 页</span>
+                  <div class="n">
+                    <button class="mini-btn" id="btnPrev" aria-label="上一页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+                    <button class="mini-btn" id="btnNext" aria-label="下一页"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+                  </div>
+                </div>
+                <div class="preview-frame">
+                  <div class="slide-render" id="previewFrame"></div>
+                </div>
+
+                <div class="preview-revise">
+                  <label for="reviseInput">对当前页提修改要求</label>
+                  <div class="revise-row">
+                    <textarea class="control" id="reviseInput" placeholder="例如：这一页文字太多，改成三个短句；换成左右两栏配图。"></textarea>
+                    <button class="btn btn-primary btn-sm" id="btnRevise">提交修改</button>
+                  </div>
+                  <div class="chat-log" id="reviseLog"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="bar">
+              <div class="bar-summary">
+                <span class="dot" style="background:#5f8a70;"></span>
+                <span>草稿已保存 · 最近修改 <span id="saveTime">—</span> · <b id="sumSlides">12</b> 页</span>
+              </div>
+              <div class="bar-actions">
+                <button class="btn" id="btnBackTo2">继续改大纲</button>
+                <button class="btn btn-accent" id="btnConfirmDownload">
+                  <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m5 13 4 4L19 7"/></svg>
+                  确认并下载 PPT
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <!-- ===== Feature: PDF → Markdown ===== -->
+      <div id="view-pdf" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Workflow 01 / Textbook</div>
+            <h1>教材 PDF，<em>转成可编辑 MD</em></h1>
+            <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版不会伪造文字，会明确提示先用 MinerU 生成草稿。</p>
+          </div>
+        </div>
+        <div class="flow-bar" aria-label="教材转化流程">
+          <button class="flow-step on" data-goto="pdf"><i>01</i><span>教材 PDF<small>提取 Markdown 与原图</small></span></button>
+          <span class="flow-line"></span>
+          <button class="flow-step" data-goto="word"><i>02</i><span>教案 Word<small>按学时套模板生成</small></span></button>
+          <span class="flow-line"></span>
+          <button class="flow-step" data-goto="ppt"><i>03</i><span>课堂 PPT<small>确认大纲后原生制作</small></span></button>
+        </div>
+        <div class="stage-grid">
+          <section class="card">
+            <div class="card-head">
+              <div><h2 class="card-title">1. 选择教材 PDF</h2><p class="card-sub">仅本机解析，文件不会自动发往模型服务</p></div>
+            </div>
+            <label class="drop" id="pdfDrop">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+              <div class="drop-label">拖入 PDF，或<b>点击选择</b></div>
+              <div class="drop-hint">支持文字版 PDF · ≤ 30MB · 扫描版需先经 MinerU</div>
+              <input type="file" id="pdfFile" accept=".pdf" aria-label="上传教材 PDF">
+            </label>
+            <div id="pdfPicked" class="picked-file" hidden></div>
+            <ul class="check-list" aria-label="解析内容">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>按「第 N 章」切分章节，忽略目录行</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>x.y / x.y.z 编号标题转为 Markdown 层级</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>原图按页导出，题注下方插入引用</li>
+            </ul>
+            <div class="bar-actions" style="margin-top:16px">
+              <button class="btn btn-accent" id="pdfStart" disabled>开始解析</button>
+              <span id="pdfState" class="hint" aria-live="polite"></span>
+            </div>
+          </section>
+          <aside class="card status-card">
+            <div class="card-head">
+              <div><h2 class="card-title">本机解析任务</h2><p class="card-sub">刷新或重启后可从这里恢复查看</p></div>
+              <button class="btn btn-sm" id="pdfRefresh">刷新</button>
+            </div>
+            <div id="pdfJobs" class="job-list"><div class="empty-ref">还没有解析任务</div></div>
+            <div class="notice small"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>未完成任务在重启后标记为中断，原始 PDF 保留，可重试。</span></div>
+          </aside>
+        </div>
+        <section id="pdfResult" class="card stage-result" hidden>
+          <div class="card-head">
+            <div><h2 class="card-title" id="pdfResultTitle">解析结果</h2><p class="card-sub" id="pdfResultMeta"></p></div>
+            <button class="btn btn-sm" id="pdfSendAll">全部送入教案</button>
+          </div>
+          <div id="pdfChapters" class="result-grid"></div>
+        </section>
+      </div>
+
+      <!-- ===== Feature: MD → Lesson Word ===== -->
+      <div id="view-word" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Workflow 02 / Lesson plan</div>
+            <h1>教材 MD，<em>套模板成教案</em></h1>
+            <p>整章教材与单学时模板交给教案引擎：按实验数拆学时，每个学时一份原位套模板 Word，并保留质检与验收结果。</p>
+          </div>
+        </div>
+        <div class="flow-bar" aria-label="教材转化流程">
+          <button class="flow-step" data-goto="pdf"><i>01</i><span>教材 PDF<small>提取 Markdown 与原图</small></span></button>
+          <span class="flow-line"></span>
+          <button class="flow-step on" data-goto="word"><i>02</i><span>教案 Word<small>按学时套模板生成</small></span></button>
+          <span class="flow-line"></span>
+          <button class="flow-step" data-goto="ppt"><i>03</i><span>课堂 PPT<small>确认大纲后原生制作</small></span></button>
+        </div>
+        <div class="stage-grid">
+          <div class="stack">
+            <section class="card">
+              <div class="card-head">
+                <div><h2 class="card-title">1. 模型 API</h2><p class="card-sub">Key 只存在本次请求的服务端内存，不写任务文件</p></div>
+              </div>
+              <div class="form-grid">
+                <div class="field full">
+                  <label for="wordApiPreset">接口来源</label>
+                  <select class="control" id="wordApiPreset">
+                    <option value="server">服务器 .env（JIAOAN_*，推荐本机）</option>
+                    <option value="deepseek">DeepSeek 官方</option>
+                    <option value="local">本机 Ollama（qwen2.5:7b）</option>
+                    <option value="custom">自定义 OpenAI 兼容接口</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label for="wordBase">Base URL <span class="hint">通常以 /v1 结尾</span></label>
+                  <input class="control" id="wordBase" type="text" placeholder="https://your-gateway.example.com/v1" autocomplete="off">
+                </div>
+                <div class="field full">
+                  <label for="wordKey">API Key <span class="hint">仅本次生成使用</span></label>
+                  <div class="inline-control">
+                    <input class="control" id="wordKey" type="password" placeholder="sk-..." autocomplete="off">
+                    <button class="btn btn-sm" id="wordKeyToggle" type="button">显示</button>
+                  </div>
+                </div>
+                <div class="field full">
+                  <label for="wordModel">模型名</label>
+                  <div class="inline-control">
+                    <input class="control" id="wordModel" type="text" list="wordModels" placeholder="deepseek-chat" autocomplete="off">
+                    <button class="btn btn-sm" id="wordModelsBtn" type="button">获取模型</button>
+                    <button class="btn btn-sm" id="wordTestBtn" type="button">测试连接</button>
+                  </div>
+                  <datalist id="wordModels"></datalist>
+                </div>
+              </div>
+              <div id="wordApiStatus" class="hint" aria-live="polite"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <div><h2 class="card-title">2. 教材与模板</h2><p class="card-sub">可直接选 PDF→MD 阶段产物，也可上传已有 Markdown</p></div>
+              </div>
+              <div class="subhead">教材来源</div>
+              <div id="wordArtifacts" class="artifact-list"><div class="empty-ref">还没有 PDF→MD 产物，先到第 01 步解析教材</div></div>
+              <div class="or-line"><span>或上传</span></div>
+              <label class="drop drop-sm" id="wordTextbookDrop">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+                <div class="drop-label">上传教材 <b>Markdown</b></div>
+                <div class="drop-hint">.md / .markdown · 可多章</div>
+                <input type="file" id="wordTextbookFile" accept=".md,.markdown" aria-label="上传教材 Markdown">
+              </label>
+              <div id="wordTextbookPicked" class="picked-file" hidden></div>
+              <div class="subhead" style="margin-top:16px">教案模板（可多份，按章匹配）</div>
+              <label class="drop drop-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/></svg>
+                <div class="drop-label">上传 <b>.docx 模板</b></div>
+                <div class="drop-hint">支持 6 栏 / 9 栏单学时模板；不传则用内置版式</div>
+                <input type="file" id="wordTemplates" accept=".docx" multiple aria-label="上传教案模板">
+              </label>
+              <div id="wordTemplateList" class="file-list"></div>
+              <div class="subhead" style="margin-top:16px">教材配图（可选）</div>
+              <label class="drop drop-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+                <div class="drop-label">上传 <b>教材图片</b></div>
+                <div class="drop-hint">PDF→MD 产物会自带原图，这里补传直接上传 Markdown 的配图</div>
+                <input type="file" id="wordImages" accept="image/*" multiple aria-label="上传教材配图">
+              </label>
+              <div id="wordImageList" class="file-list"></div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <div><h2 class="card-title">3. 教学简报与生成选项</h2><p class="card-sub">学时拆分以本章实验数为准，填写学时数则按填写值</p></div>
+              </div>
+              <div class="form-grid">
+                <div class="field"><label for="wordSubject">学科</label><input class="control" id="wordSubject" type="text" value="信息科技"></div>
+                <div class="field"><label for="wordGrade">授课对象</label><input class="control" id="wordGrade" type="text" value="八年级"></div>
+                <div class="field"><label for="wordDuration">单课时时长</label><select class="control" id="wordDuration"><option value="45">45 分钟</option><option value="40">40 分钟</option><option value="50">50 分钟</option><option value="90">90 分钟</option></select></div>
+                <div class="field"><label for="wordType">课型</label><select class="control" id="wordType"><option>新授课</option><option>实践课</option><option>复习课</option></select></div>
+                <div class="field full"><label for="wordProfile">学情补充 <span class="hint">可选</span></label><input class="control" id="wordProfile" type="text" placeholder="例如：学生已掌握 Python 基础与简单绘图"></div>
+                <div class="field"><label for="wordPeriods">指定学时数 <span class="hint">留空=自动</span></label><input class="control" id="wordPeriods" type="number" min="1" max="12" placeholder="自动"></div>
+                <div class="field"><label for="wordChapterFilter">只生成指定章节 <span class="hint">可选</span></label><input class="control" id="wordChapterFilter" type="text" placeholder="ch01,ch02"></div>
+              </div>
+              <div class="option-row">
+                <label class="check-opt"><input type="checkbox" id="wordOffline"> 离线演示（不调用模型，内容为确定性填充）</label>
+                <label class="check-opt"><input type="checkbox" id="wordReview"> 生成后追加 AI 复核</label>
+                <label class="check-opt"><input type="checkbox" id="wordFilter" checked> 过滤二维码 / 源码截图 / 重复图</label>
+                <label class="check-opt"><input type="checkbox" id="wordKeepAll"> 保留全部配图</label>
+              </div>
+              <div class="bar-actions" style="margin-top:16px">
+                <button class="btn btn-accent" id="wordStart">开始生成教案</button>
+                <span id="wordState" class="hint" aria-live="polite"></span>
+              </div>
+            </section>
+          </div>
+
+          <aside class="card status-card">
+            <div class="card-head">
+              <div><h2 class="card-title">任务状态</h2><p class="card-sub" id="wordJobMeta">尚未开始</p></div>
+              <button class="btn btn-sm" id="wordJobsRefresh">刷新</button>
+            </div>
+            <div id="wordProgress" class="progress-wrap" hidden>
+              <div class="progress-track"><i id="wordProgressBar"></i></div>
+              <div id="wordProgressText" class="hint"></div>
+            </div>
+            <div id="wordChapters" class="job-list"><div class="empty-ref">生成后在此查看章节与学时状态</div></div>
+            <div id="wordError" class="notice small" hidden></div>
+            <div class="subhead" style="margin-top:14px">近期任务</div>
+            <div id="wordJobs" class="job-list compact"><div class="empty-ref">暂无任务</div></div>
+          </aside>
+        </div>
+        <section id="wordResults" class="card stage-result" hidden>
+          <div class="card-head">
+            <div><h2 class="card-title">生成的教案</h2><p class="card-sub" id="wordResultMeta"></p></div>
+          </div>
+          <div id="wordDocx" class="result-grid"></div>
+        </section>
+      </div>
+
+      <!-- ===== Feature: WIP placeholder ===== -->
+      <div id="view-wip" hidden>
+        <div class="page-head">
+          <div>
+            <div class="eyebrow" id="wipEyebrow">Workflow 01</div>
+            <h1 id="wipTitle">教材 PDF 转 MD</h1>
+            <p id="wipDesc">功能筹备中。当前版本仅开放「教案 + 教材转 PPT」。</p>
+          </div>
+        </div>
+        <div class="wip">
+          <svg viewBox="0 0 120 120" fill="none" stroke="#cfc7b8" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="28" y="18" width="52" height="66" rx="6" fill="#fdfcfa"/>
+            <path d="M40 34h28M40 44h28M40 54h18"/>
+            <rect x="44" y="62" width="46" height="40" rx="6" fill="#fff" stroke="#b8b0a2"/>
+            <path d="M54 74h18M54 82h24M54 90h12" stroke="#d8d2c6"/>
+            <path d="M84 40l8-8" stroke="#b85c38"/>
+            <circle cx="88" cy="36" r="12" stroke="#b85c38" stroke-dasharray="3 4"/>
+          </svg>
+          <h2>这个工作台还在打磨</h2>
+          <p>PDF 解析与教案 Word 生成正在内测。先使用已上线的 PPT 生成流程，用知识库里的教案和教材直接成稿。</p>
+          <button class="btn btn-accent" data-feature="ppt">回到 PPT 生成</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ==== Knowledge base modal ==== -->
+<div class="modal" id="kbModal" role="dialog" aria-modal="true" aria-labelledby="kbTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div>
+        <h2 id="kbTitle">从知识库选择参考资料</h2>
+        <p>本机教学资源库· 支持同时引用教案与教材，最多 6 份</p>
+      </div>
+      <button class="icon-btn" id="kbClose" aria-label="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="kb-side" role="tablist" aria-label="资源类型">
+        <button class="kb-tab on" data-kbtab="all">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          全部资源<span class="count" id="kbCountAll">0</span>
+        </button>
+        <button class="kb-tab" data-kbtab="jiaoan">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3v5h5"/><path d="M19 8v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5Z"/></svg>
+          教案<span class="count" id="kbCountJ">0</span>
+        </button>
+        <button class="kb-tab" data-kbtab="jiaocai">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7"/></svg>
+          教材<span class="count" id="kbCountC">0</span>
+        </button>
+      </div>
+      <div class="kb-main">
+        <div class="kb-search">
+          <input class="control" id="kbSearch" type="search" placeholder="搜索教案或教材名称、单元、作者…" aria-label="搜索知识库">
+          <button class="btn btn-sm" id="kbRefresh" title="重新同步知识库">刷新</button>
+        </div>
+        <div class="bar-actions" style="padding:8px 0">
+        <select id="knowledgeType" class="control" aria-label="入库分类"><option value="jiaocai">教材</option><option value="jiaoan">教案</option></select>
+        <button class="btn btn-sm" id="knowledgeUpload">上传到知识库</button><input id="knowledgeFile" type="file" accept=".doc,.docx,.pdf,.md,.txt" hidden>
+        </div><div class="kb-list" id="kbList"><!-- JS renders --></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="picked">已选 <b id="kbPicked">0</b> / 6 份参考资料</span>
+      <div class="bar-actions">
+        <button class="btn btn-sm" id="kbCancel">取消</button>
+        <button class="btn btn-sm btn-accent" id="kbConfirm">加入参考资料</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>[hidden]{display:none!important}.thumb-canvas img{display:block}.slide-render img{display:block}#taskStatus{white-space:pre-wrap}#taskActions{margin-bottom:16px}.preview-toolbar{flex-wrap:wrap}#versionSelect{width:auto;flex:0 1 220px;min-width:120px;max-width:100%}</style><div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+<style>
+/* ==== Integrated pipeline pages (PDF→MD / MD→教案) ==== */
+.flow-bar{display:flex;align-items:center;gap:10px;margin:0 0 20px;padding:6px 0;overflow-x:auto;}
+.flow-step{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:#fff;border-radius:var(--radius-sm);padding:9px 14px;text-align:left;color:var(--ink-3);min-width:150px;box-shadow:var(--shadow);}
+.flow-step i{font-style:normal;font-family:var(--mono);font-size:11px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#f1eee7;color:var(--ink-3);flex:0 0 26px;}
+.flow-step span{font-size:12.5px;font-weight:600;color:var(--ink-2);line-height:1.35;}
+.flow-step small{display:block;font-weight:400;font-size:10.5px;color:var(--ink-3);margin-top:1px;}
+.flow-step.on{border-color:#e2c9bb;background:var(--accent-soft);}
+.flow-step.on i{background:var(--accent);color:#fff;}
+.flow-step.on span{color:var(--accent-dark);}
+.flow-line{height:1px;background:var(--line-strong);flex:1;min-width:14px;}
+.stage-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;}
+.stage-grid .stack{display:flex;flex-direction:column;gap:16px;min-width:0;}
+.status-card{position:sticky;top:88px;}
+.subhead{font-size:12px;font-weight:600;color:var(--ink-2);margin:4px 0 8px;letter-spacing:.02em;}
+.drop-sm{padding:14px;}
+.picked-file{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fbfaf7;font-size:12.5px;}
+.picked-file b{font-weight:600;word-break:break-all;}
+.picked-file button{border:0;background:transparent;color:var(--ink-3);padding:2px 4px;}
+.check-list{display:flex;flex-direction:column;gap:7px;margin:14px 0 0;font-size:12.5px;color:var(--ink-2);}
+.check-list li{display:flex;align-items:flex-start;gap:8px;}
+.check-list svg{width:13px;height:13px;stroke:var(--sage);flex:0 0 13px;margin-top:3px;}
+.inline-control{display:flex;gap:8px;align-items:stretch;}
+.inline-control .control{flex:1;min-width:0;}
+.inline-control .btn{flex:0 0 auto;white-space:nowrap;}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-grid .full{grid-column:1/-1;}
+.option-row{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:14px;}
+.check-opt{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-2);}
+.check-opt input{accent-color:var(--accent);}
+.artifact-list{display:flex;flex-direction:column;gap:7px;max-height:190px;overflow:auto;}
+.artifact-row{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px;background:#fbfaf7;font-size:12.5px;cursor:pointer;}
+.artifact-row.on{border-color:#e2c9bb;background:var(--accent-soft);}
+.artifact-row input{margin-top:3px;accent-color:var(--accent);}
+.artifact-row .ar-body{min-width:0;}
+.artifact-row b{display:block;font-weight:600;word-break:break-all;line-height:1.4;}
+.artifact-row span{display:block;color:var(--ink-3);font-size:11px;margin-top:2px;}
+.or-line{display:flex;align-items:center;gap:10px;color:var(--ink-3);font-size:11px;margin:12px 0 10px;}
+.or-line:before,.or-line:after{content:"";height:1px;background:var(--line);flex:1;}
+.file-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;font-size:12px;color:var(--ink-2);}
+.file-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;word-break:break-all;}
+.file-row>span{flex:1 1 45%;min-width:110px;font-size:11.5px;}
+.file-row .caption-input{flex:1;min-width:80px;padding:5px 8px;font-size:11.5px;}
+.file-row button{border:0;background:transparent;color:var(--ink-3);padding:0 3px;font-size:14px;line-height:1;}
+.job-list{display:flex;flex-direction:column;gap:8px;}
+.job-list.compact{max-height:180px;overflow:auto;}
+.job-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:10px 11px;background:#fbfaf7;font-size:12px;}
+.job-card.on{border-color:#e2c9bb;background:#fff;}
+.job-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.job-head b{font-size:12.5px;font-weight:600;word-break:break-all;line-height:1.35;}
+.badge{font-size:10.5px;padding:2px 8px;border-radius:99px;white-space:nowrap;background:#f1eee7;color:var(--ink-3);}
+.badge.ok{background:var(--sage-soft);color:var(--sage);}
+.badge.warn{background:#fdf1e7;color:#96602e;}
+.badge.err{background:#fbe9e7;color:#a13c2a;}
+.job-meta{color:var(--ink-3);font-size:11px;margin-top:4px;line-height:1.5;word-break:break-word;}
+.job-card .bar-actions{margin-top:8px;gap:6px;}
+.job-card .btn{padding:5px 10px;font-size:11.5px;}
+.progress-wrap{margin:2px 0 12px;}
+.progress-track{height:6px;border-radius:99px;background:#efece5;overflow:hidden;}
+.progress-track i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s ease;}
+.result-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px;}
+.result-card{border:1px solid var(--line);border-radius:var(--radius-sm);background:#fbfaf7;padding:12px;}
+.result-card h3{font-size:13px;font-weight:600;margin-bottom:3px;word-break:break-all;}
+.result-card .rc-meta{font-size:11px;color:var(--ink-3);line-height:1.55;}
+.result-card pre{background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px;font-size:11px;line-height:1.65;max-height:180px;overflow:auto;white-space:pre-wrap;word-break:break-word;margin:8px 0 0;}
+.result-card .bar-actions{margin-top:9px;gap:6px;}
+.result-card .btn{padding:5px 9px;font-size:11.5px;}
+.stage-result{margin-top:18px;}
+.notice.small{font-size:11.5px;margin-top:12px;align-items:flex-start;}
+.notice.small svg{width:13px;height:13px;flex:0 0 13px;margin-top:2px;}
+@media(max-width:1024px){.stage-grid{grid-template-columns:minmax(0,1fr) 320px;}}
+@media(max-width:860px){
+  .stage-grid{grid-template-columns:1fr;}
+  .status-card{position:static;}
+  .flow-bar{gap:6px;}
+  .flow-step{min-width:0;flex:1;padding:8px 10px;}
+  .flow-step small{display:none;}
+  .form-grid{grid-template-columns:1fr;}
+}
+</style>
+
+<style>
+  /* 让 slide 内部字号随画布缩放（container query 单位） */
+  .slide-render{container-type:size;}
+</style>
+<script src="/static/workbench.js"></script>
+<script src="/static/pipeline.js"></script>
+</body>
+</html>
