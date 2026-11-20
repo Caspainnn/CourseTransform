@@ -30,7 +30,6 @@ STYLE_CLASS = {
 def iter_blocks(doc):
     """Yield (block_id, paragraph, kind) in document order."""
     counter = 0
-    seen = set()
     table_index = -1
     for child in doc.element.body.iterchildren():
         if child.tag == qn('w:p'):
@@ -40,11 +39,11 @@ def iter_blocks(doc):
             table_index += 1
             table = Table(child, doc)
             for r_index, row in enumerate(table.rows):
+                previous = None
                 for c_index, cell in enumerate(row.cells):
-                    key = id(cell._tc)
-                    if key in seen:
+                    if previous is not None and cell._tc is previous:
                         continue
-                    seen.add(key)
+                    previous = cell._tc
                     for paragraph in cell.paragraphs:
                         counter += 1
                         yield f't{table_index}r{r_index}c{c_index}p{counter:04d}', paragraph, 'cell'
@@ -106,14 +105,15 @@ def _paragraph(paragraph, doc, block_id):
 
 def _table(table, doc, table_index, counter):
     rows = []
-    seen = set()
     for r_index, row in enumerate(table.rows):
         cells = []
+        previous = None
         for c_index, cell in enumerate(row.cells):
-            key = id(cell._tc)
-            if key in seen:
+            # Horizontal merges repeat the same <w:tc> inside one row; keep the
+            # first occurrence and let its colspan cover the rest.
+            if previous is not None and cell._tc is previous:
                 continue
-            seen.add(key)
+            previous = cell._tc
             span = 1
             grid = cell._tc.tcPr.gridSpan if cell._tc.tcPr is not None else None
             if grid is not None and grid.val:
@@ -126,7 +126,8 @@ def _table(table, doc, table_index, counter):
             for paragraph in cell.paragraphs:
                 counter += 1
                 parts.append(_paragraph(paragraph, doc, f't{table_index}r{r_index}c{c_index}p{counter:04d}'))
-            cells.append(f'<td colspan="{span}"{shade}>{"".join(parts)}</td>')
+            span_attr = f' colspan="{span}"' if span > 1 else ''
+            cells.append(f'<td{span_attr}{shade}>{"".join(parts)}</td>')
         rows.append('<tr>' + ''.join(cells) + '</tr>')
     return '<table class="docx-table">' + ''.join(rows) + '</table>', counter
 

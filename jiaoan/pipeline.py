@@ -377,6 +377,32 @@ class LessonPipeline:
         # 这里只补“结构完整度”，内容仍来自教材原文/本章目标，并在报告里标注需复核。
         plan = ensure_plan_minimums(plan, chapter, result)
 
+        # 每学时至少两张教学图：教材没有可用图时生成教学流程/知识结构示意图。
+        if structured_nine and len(assets) < 2:
+            from .images import generate_fallback_diagrams
+            generated = generate_fallback_diagrams(out_dir, plan, chapter, 2 - len(assets))
+            assets.extend(generated)
+            figures = plan.setdefault("figures", [])
+            known = {str(x.get("id")) for x in figures if isinstance(x, dict)}
+            lessons = [x for x in (plan.get("lessons") or []) if isinstance(x, dict)]
+            phases = (lessons[0].get("phases") if lessons else []) or []
+            phase_id = str((phases[min(1, len(phases) - 1)] if phases else {}).get("id") or "")
+            for asset in generated:
+                if asset.id in known:
+                    continue
+                figure = {
+                    "id": asset.id,
+                    "path": asset.output_path or asset.path,
+                    "caption": asset.alt,
+                    "placement": "phase" if phase_id else "section",
+                }
+                if phase_id:
+                    figure["phase_id"] = phase_id
+                figures.append(figure)
+            if result.image_summary is not None:
+                result.image_summary["generated"] = len(generated)
+
+
         # 渲染 Markdown 后再校验篇幅（同时保留中间稿）
         for adjustment in normalize_phase_minutes(plan):
             result.warnings.append(f"时间归一：{adjustment}")

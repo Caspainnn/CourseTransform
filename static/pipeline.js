@@ -45,7 +45,7 @@
     pdfFile:null, activePdf:null, pdfTimer:null,
     artifacts:[], selectedArtifacts:new Set(),
     textbookFile:null, templates:[], images:[], imageCaptions:{}, knowledgeRefs:[], refRows:[], knowledgeCache:[], refChoice:{artifacts:new Set(), knowledge:new Set()},
-    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, lessonIndex:1, lessonEditing:false,
+    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, lessonIndex:1, lessonEditing:false, wordShownStep:0, wordStageShownAt:0, lessonWasRunning:false,
     initialized:{pdf:false, word:false}
   };
 
@@ -833,6 +833,8 @@
     button.disabled = true;
     state.wordStageHidden = false;
     state.wordStartedAt = 0;
+    state.wordShownStep = 0;
+    state.lessonWasRunning = false;
     $("#wordState").textContent = "创建任务…";
     try {
       const payload = {
@@ -889,12 +891,12 @@
     const retry = event.target.closest("[data-retry-lesson]");
     try {
       if (open){
-        state.wordStageHidden = false; state.wordStartedAt = 0;
+        state.wordStageHidden = false; state.wordStartedAt = 0; state.wordShownStep = 0; state.wordStageShownAt = 0; state.lessonWasRunning = false;
         history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(open.dataset.openLesson)}`);
         await pollLesson(open.dataset.openLesson);
       }
       if (retry){
-        state.wordStageHidden = false; state.wordStartedAt = 0;
+        state.wordStageHidden = false; state.wordStartedAt = 0; state.wordShownStep = 0; state.wordStageShownAt = 0; state.lessonWasRunning = false;
         const result = await api(`/api/pipeline/lesson/jobs/${retry.dataset.retryLesson}/retry`, "POST", {});
         history.replaceState(null, "", `?feature=word&lesson=${encodeURIComponent(result.id)}`);
         await pollLesson(result.id);
@@ -911,11 +913,13 @@
         state.wordStartedAt = Date.parse(job.created_at) || Date.now();
       }
       if (["queued","running"].includes(job.status)){
+        state.lessonWasRunning = true;
         if (!state.wordStageHidden) showWordProgress(job);
         else updateWordProgress(job);
         state.lessonTimer = setTimeout(()=>pollLesson(id), 1400);
         return;
       }
+      await finishWordProgress(job);
       stopWordClock();
       hideWordProgress();
       renderLessonJob(job);
@@ -946,23 +950,16 @@
     $("#wordStageGrid").hidden = true;
     $("#lessonStage").hidden = true;
     $("#wordProgressStage").hidden = false;
+    if (!state.wordStageShownAt) state.wordStageShownAt = Date.now();
     $("#wordProgressTitle").textContent = "正在生成教案";
     $("#wordProgressFile").textContent = job.source?.textbookName || job.id || "";
     if (!state.wordStartedAt) state.wordStartedAt = Date.now();
     startWordClock();
     updateWordProgress(job);
   }
-  function updateWordProgress(job){
-    const total = job.progress?.total || 0;
-    const current = job.progress?.current || 0;
-    let step = 0, pct = 6, label = job.progressText || "准备任务…";
-    if (job.status === "queued"){ pct = 5; label = "排队中…"; }
-    if (total){ step = 1; pct = 15; label = job.progressText || "拆分学时…"; }
-    if (total && current){ step = 2; pct = 15 + Math.round(70 * current / total); label = `生成第 ${current}/${total} 章…`; }
-    if (total && current >= total){ step = 3; pct = Math.max(pct, 90); label = "质检验收与打包 Word…"; }
-    if (job.status === "succeeded"){ step = 5; pct = 100; label = "完成，正在打开结果…"; }
-    else if (job.status === "running" && !total){ pct = Math.max(pct, Math.min(40, 8 + Math.floor((Date.now() - state.wordStartedAt) / 1000 * 0.6))); }
+  function paintWordProgress(step, pct, label){
     state.wordPct = pct;
+    state.wordShownStep = Math.max(state.wordShownStep || 0, step);
     $("#wordStageBar").style.width = pct + "%";
     $("#wordStageTrack").setAttribute("aria-valuenow", String(pct));
     $("#wordStageText").textContent = label;
@@ -975,7 +972,33 @@
     if (timer) timer.textContent = `总进度 ${pct}% · 已用 ${fmtElapsed(state.wordStartedAt || Date.now())}`;
     $("#wordProgress").hidden = false;
     $("#wordProgressBar").style.width = pct + "%";
-    $("#wordProgressText").textContent = job.progressText || label;
+    $("#wordProgressText").textContent = label;
+  }
+  function updateWordProgress(job){
+    const total = job.progress?.total || 0;
+    const current = job.progress?.current || 0;
+    let step = 0, pct = 6, label = job.progressText || "准备任务…";
+    if (job.status === "queued"){ pct = 5; label = "排队中…"; }
+    if ((Date.now() - (state.wordStageShownAt || Date.now())) < 1200){ step = 0; pct = 8; label = "解析教材…"; }
+    else if (total){ step = 1; pct = 15; label = "拆分学时…"; }
+    if (total && current){ step = 2; pct = 15 + Math.round(70 * current / total); label = `生成第 ${current}/${total} 章…`; }
+    if (total && current >= total){ step = 3; pct = Math.max(pct, 90); label = "质检验收与打包 Word…"; }
+    else if (job.status === "running" && !total){ pct = Math.max(pct, Math.min(40, 8 + Math.floor((Date.now() - state.wordStartedAt) / 1000 * 0.6))); }
+    paintWordProgress(step, pct, label);
+  }
+  async function finishWordProgress(job){
+    state.lessonWasRunning = false;
+    if (state.wordStageHidden || $("#wordProgressStage").hidden) return;
+    const labels = ["解析教材", "拆分学时", "生成内容", "质检验收", "打包 Word"];
+    const percents = [12, 32, 58, 78, 92];
+    const elapsed = Date.now() - (state.wordStartedAt || Date.now());
+    const start = elapsed < 6000 ? Math.max(1, state.wordShownStep || 1) : Math.max(0, state.wordShownStep || 0);
+    for (let step = start; step < 5; step++){
+      paintWordProgress(step, percents[step], `${labels[step]}…`);
+      await new Promise(resolve=>setTimeout(resolve, 420));
+    }
+    paintWordProgress(5, 100, "完成，正在打开结果…");
+    await new Promise(resolve=>setTimeout(resolve, 260));
   }
   function hideWordProgress(){
     $("#wordProgressStage").hidden = true;

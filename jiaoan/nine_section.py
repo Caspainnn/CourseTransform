@@ -136,6 +136,11 @@ def _image_placements(assets: list[Any] | None) -> list[tuple[int, Any]]:
             placements.append((idx, buckets[bucket].pop(0)))
     if buckets["analysis"]:
         placements.append((4, buckets["analysis"].pop(0)))
+    # 每个学时至少两张图：同类图还有剩余时继续挂到“流程/对照”环节。
+    if len(placements) < 2:
+        for phase, name in ((2, "flow"), (2, "application"), (4, "analysis"), (1, "review")):
+            while buckets[name] and len(placements) < 2:
+                placements.append((phase, buckets[name].pop(0)))
     return placements
 
 
@@ -192,7 +197,15 @@ def build_nine_section_data(
         data = _cnn_poisoning_data(plan, chapter, duration, lesson_no)
     else:
         data = _generic_data(plan, chapter, duration, lesson_index, lesson_no)
-    data["image_placements"] = _image_placements(_assets_for_lesson(assets, chapter, lesson))
+    lesson_assets = list(_assets_for_lesson(assets, chapter, lesson))
+    # 每个学时至少两张插图：优先本小节的图；不足时用本章其它教学图补足。
+    if assets and len(lesson_assets) < 2:
+        for asset in assets:
+            if asset not in lesson_assets:
+                lesson_assets.append(asset)
+            if len(lesson_assets) >= 2:
+                break
+    data["image_placements"] = _image_placements(lesson_assets)
     return data
 
 

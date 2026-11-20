@@ -704,6 +704,9 @@ def create_blueprint(data_dir):
             source['textbookName'] = ' + '.join(dict.fromkeys(names)) or '教材'
             templates = [item for item in request.files.getlist('templates') if item.filename] + kb_templates
             images = [item for item in request.files.getlist('images') if item.filename]
+            for staged in sorted(images_dir.glob('*')):
+                if staged.is_file():
+                    images.append(FileStorage(stream=open(staged, 'rb'), filename=staged.name))
             ident = service.lessons.create(
                 textbook_path=folder / 'textbook.md', templates=templates, images=images,
                 payload=payload, source=source,

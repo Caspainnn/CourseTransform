@@ -406,6 +406,7 @@ class PipelineIntegrationTests(unittest.TestCase):
         doc = Docx(io.BytesIO(self.client.get(ok['url']).data))
         shapes = [(len(table.rows), len(table.columns)) for table in doc.tables]
         self.assertEqual(shapes[:5], [(7, 2), (5, 4), (9, 6), (5, 2), (5, 3)])
+        self.assertGreaterEqual(len(doc.inline_shapes), 2)
         texts = [paragraph.text for paragraph in doc.paragraphs]
         self.assertTrue(any('课程基本信息' in text for text in texts))
         self.assertTrue(any(text.startswith('第1学时') for text in texts))
@@ -415,6 +416,7 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertIn('<table class="docx-table">', html)
         self.assertIn('data-block-id="', html)
         self.assertIn('课程基本信息', html)
+        self.assertGreaterEqual(html.count('<img'), 2)
         self.assertNotIn('text-align:center (1)', html)
 
     def test_lesson_from_knowledge_refs_and_handoff_keeps_source(self):

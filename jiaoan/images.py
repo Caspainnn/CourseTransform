@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 from .image_filter import classify_image, image_digest, is_duplicate
 from .textbook import Chapter
@@ -234,6 +234,91 @@ def discover_images(
                     break
             else:
                 kept.append((digest, asset))
+    return assets
+
+
+def _font(size: int):
+    for name in ("msyh.ttc", "simhei.ttf", "simsun.ttc"):
+        path = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / name
+        if path.is_file():
+            try:
+                return ImageFont.truetype(str(path), size)
+            except Exception:
+                continue
+    return ImageFont.load_default()
+
+
+def _wrap(text: str, font, width: int, limit: int = 3) -> list[str]:
+    lines, current = [], ""
+    for char in str(text or ""):
+        if font.getlength(current + char) > width and current:
+            lines.append(current)
+            current = char
+            if len(lines) >= limit:
+                break
+        else:
+            current += char
+    if current and len(lines) < limit:
+        lines.append(current)
+    return lines or [""]
+
+
+def generate_fallback_diagrams(out_dir: str | Path, plan: dict[str, Any], chapter: Chapter, count: int = 2) -> list[ImageAsset]:
+    """Create two simple teaching diagrams when the textbook has no usable figures."""
+    out = Path(out_dir) / "images"
+    out.mkdir(parents=True, exist_ok=True)
+    lessons = [x for x in (plan.get("lessons") or []) if isinstance(x, dict)]
+    phases = [str(p.get("name") or "").strip() for p in ((lessons[0].get("phases") if lessons else []) or []) if str(p.get("name") or "").strip()]
+    phases = (phases or ["情境导入", "新知探究", "实践操作", "总结评价"])[:6]
+    objectives = [str(o.get("statement") or "").strip() for o in (plan.get("objectives") or []) if str(o.get("statement") or "").strip()]
+    objectives = (objectives or [str(x) for x in (plan.get("key_points") or []) if str(x).strip()])[:4]
+    assets: list[ImageAsset] = []
+    specs = [
+        ("gen01", "本课教学流程", phases, "flow"),
+        ("gen02", "本课知识结构", objectives, "structure"),
+    ]
+    for idx, (ident, title, items, kind) in enumerate(specs[:count], start=1):
+        canvas = Image.new("RGB", (1200, 600), "white")
+        draw = ImageDraw.Draw(canvas)
+        title_font, body_font = _font(38), _font(26)
+        draw.rounded_rectangle((20, 20, 1180, 580), radius=16, outline="#9fb3c8", width=3)
+        draw.text((60, 48), title, font=title_font, fill="#1f4e79")
+        if kind == "flow":
+            box_w, gap = 190, 28
+            start_x, top, height = 60, 190, 250
+            for i, name in enumerate(items):
+                x = start_x + i * (box_w + gap)
+                draw.rounded_rectangle((x, top, x + box_w, top + height), radius=12, outline="#4f81bd", width=3, fill="#eef4fb")
+                lines = _wrap(name, body_font, box_w - 30, 4)
+                y = top + 24
+                for line in lines:
+                    draw.text((x + 15, y), line, font=body_font, fill="#1f2d3d")
+                    y += 36
+                if i < len(items) - 1:
+                    ax = x + box_w + 4
+                    draw.line((ax, top + height // 2, ax + gap - 8, top + height // 2), fill="#4f81bd", width=3)
+                    draw.polygon([(ax + gap - 8, top + height // 2), (ax + gap - 20, top + height // 2 - 7), (ax + gap - 20, top + height // 2 + 7)], fill="#4f81bd")
+            note = "依据本章教学环节自动生成，可在 Word 中替换为真实课堂照片或教材图。"
+        else:
+            draw.rounded_rectangle((60, 160, 1140, 520), radius=12, outline="#4f81bd", width=3, fill="#fbfdff")
+            y = 190
+            for item in items:
+                draw.ellipse((90, y + 10, 104, y + 24), fill="#4f81bd")
+                for line in _wrap(item, body_font, 940, 2):
+                    draw.text((125, y), line, font=body_font, fill="#1f2d3d")
+                    y += 34
+                y += 18
+            note = "依据教学目标与知识要点自动生成，可在 Word 中替换为教材结构图。"
+        draw.text((60, 520), note, font=_font(20), fill="#6b7a8a")
+        filename = f"{ident}_{title}.png"
+        path = out / filename
+        canvas.save(path)
+        assets.append(ImageAsset(
+            id=ident, filename=filename, path=str(path), width=1200, height=600,
+            alt=title, hint=title, category="diagram", keep=True,
+            filter_reason="教材无可用配图，已自动生成教学示意图",
+            output_path=f"images/{filename}",
+        ))
     return assets
 
 

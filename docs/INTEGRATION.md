@@ -39,6 +39,7 @@
 - `pipeline/lesson_jobs.py`：复用 `jiaoan.web._run_job`，保留 jiaoan 的模型配置、拆学时、质检与报告；任务快照写入 `job.json`（排除 Key），重启恢复为 `interrupted`，重试复制输入后新建任务。
 - `pipeline/mineru_adapter.py`：检测 `mineru-kit` / `mineru` / `magic-pdf` 或 `MINERU_COMMAND`，执行解析、挑选 Markdown、复制并重写图片引用；`PDF_OCR_ENGINE=auto|mineru|rapidocr` 控制严格/回退模式，严格模式返回 `E_MINERU_UNAVAILABLE` / `E_MINERU_FAILED`。
 - 交付：`GET /api/pipeline/pdf/jobs/<id>/bundle` 打包 Markdown、全部原图与 `manifest.json`（引擎、页数、章节与 SHA）；结果页“下载 ZIP”直接交付（工具栏单按钮，无需顶部重复入口），用户可自行保存，服务端不做长期资料库承诺。
+- 教案版式：九段式模板按原 DOCX 克隆样式/表格/页边距；教材图不足 2 张时自动生成教学流程与知识结构示意图，并把生成图写入 `plan.figures` 以满足质检。
 - 教案交互：生成中展示 5 步进度动画（解析教材/拆分学时/生成内容/质检验收/打包 Word），可转后台；`GET .../docx/<index>/html` 输出带表格/图片/块 ID 的 Word 渲染页；结果页直接 contenteditable 改字，`POST .../docx/<index>/edit` 保存为 `_rN.docx` 修订。
 - 交互：解析中展示 5 步进度、总进度与 OCR 页码，可转后台继续；结果页支持 Markdown 渲染/纯文本切换。`POST /api/pipeline/pdf/jobs/<id>/chapters/<index>` 把编辑保存为新的 pdf2md artifact 修订（原 artifact 不变），`GET .../images/<index>/<name>` 提供渲染所需原图；预览、下载与送入教案自动使用最新修订。
 - `pipeline/artifacts.py` + `pipeline/web.py`：PDF 章节/教案学时登记不可变 artifact；交接把学时 DOCX 与教材 MD+原图写入知识库，保留 `origin` 与 SHA；质检未通过学时禁止交接（409）。
