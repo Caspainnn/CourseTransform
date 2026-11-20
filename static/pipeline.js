@@ -138,8 +138,8 @@
     const elapsed = (Date.now() - (state.pdfStartedAt || Date.now())) / 1000;
     let step = 0, pct = 6, label = "读取 PDF 页结构…";
     if (job && job.status === "queued"){ pct = 5; label = "任务排队中…"; }
-    if (/启动 MinerU/.test(all)){ step = 1; pct = Math.max(pct, 26); label = "MinerU 解析版面、图片与公式…"; }
-    if (/MinerU 完成/.test(all)){ step = 3; pct = Math.max(pct, 90); label = "MinerU 已生成 Markdown，正在整理章节…"; }
+    if (/启动解析服务/.test(all)){ step = 1; pct = Math.max(pct, 26); label = "解析服务正在还原版面、图片与公式…"; }
+    if (/解析服务完成/.test(all)){ step = 3; pct = Math.max(pct, 90); label = "解析完成，正在整理章节…"; }
     if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = Math.max(pct, 18); label = "检测到扫描页，启动本机 OCR…"; }
     const ocr = [...all.matchAll(/本机 OCR 第 (\d+)\/(\d+) 页/g)].pop();
     if (ocr){
@@ -149,7 +149,7 @@
       label = `OCR 识别第 ${done}/${total} 页…`;
     } else if (job && job.status === "running"){
       pct = Math.max(pct, Math.min(72, 10 + Math.floor(elapsed * 1.2)));
-      if (!/检测到|切分|已生成|OCR|MinerU/.test(all)) label = "提取文字层、编号标题与页结构…";
+      if (!/检测到|切分|已生成|OCR|解析服务/.test(all)) label = "提取文字层、编号标题与页结构…";
     }
     const cut = all.match(/切分出 (\d+) 个章节，导出 (\d+) 张图片/);
     if (cut){
@@ -332,7 +332,7 @@
   function pdfMetaText(job){
     const result = job.result || {};
     let ocr = "";
-    if (result.engine === "mineru") ocr = ` · MinerU ${result.mineruTier || "standard"}${result.mineruSeconds ? "（" + Math.round(result.mineruSeconds) + "s）" : ""}`;
+    if (result.engine === "mineru") ocr = ` · 解析服务 ${result.mineruTier || "standard"}${result.mineruSeconds ? "（" + Math.round(result.mineruSeconds) + "s）" : ""}`;
     else if (result.ocr) ocr = ` · 本机 OCR ${result.ocrPages ?? ""} 页${result.ocrConfidence ? "（均值 " + result.ocrConfidence + "）" : ""}`;
     const edited = (job.chapters || []).some(item => item.edited) ? " · 含本机修订" : "";
     return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${ocr}${edited} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
@@ -496,8 +496,6 @@
     $("#pdfDocEditActions").hidden = true;
     $("#pdfDocEdit").disabled = false;
     $("#pdfDocEdit").textContent = "编辑";
-    $("#pdfDocImages").hidden = !chapter.imageCount;
-    $("#pdfDocImages").textContent = `下载原图 (${chapter.imageCount})`;
     $("#pdfDocDownload").disabled = false;
     const picker = $("#pdfDocSelect");
     if (picker) picker.value = String(index);
@@ -532,7 +530,6 @@
     hidePdfError();
     $("#pdfDocTitle").textContent = job.fileName || "解析结果";
     $("#pdfDocMeta").textContent = pdfMetaText(job);
-    $("#pdfSendAll").disabled = !(job.chapters && job.chapters.length);
     if (!job.chapters || !job.chapters.length){
       $("#pdfDocSelect").hidden = true;
       $("#pdfDocRender").innerHTML = '<div class="notice">没有可显示的章节内容。</div>';
@@ -631,14 +628,8 @@
       button.textContent = "保存修订";
     }
   });
-  $("#pdfBundle").addEventListener("click", ()=>{
-    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/bundle`;
-  });
   $("#pdfDocDownload").addEventListener("click", ()=>{
-    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/download/${state.pdfChapter}`;
-  });
-  $("#pdfDocImages").addEventListener("click", ()=>{
-    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/images/${state.pdfChapter}.zip`;
+    if (state.pdfJob) window.location.href = `/api/pipeline/pdf/jobs/${state.pdfJob.id}/bundle`;
   });
   $("#pdfDocHandoff").addEventListener("click", ()=>{
     const chapter = pdfChapter();
@@ -646,12 +637,6 @@
     state.selectedArtifacts = new Set([chapter.artifactId]);
     if (window.Workbench) window.Workbench.showFeature("word");
     toast("已带入 1 章教材，继续选模板与简报");
-  });
-  $("#pdfSendAll").addEventListener("click", ()=>{
-    if (!state.pdfJob || !state.pdfJob.chapters?.length){ toast("还没有可用的章节产物"); return; }
-    state.selectedArtifacts = new Set(state.pdfJob.chapters.map(item=>item.artifactId));
-    if (window.Workbench) window.Workbench.showFeature("word");
-    toast(`已带入 ${state.selectedArtifacts.size} 章教材`);
   });
 
 

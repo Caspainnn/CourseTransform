@@ -269,7 +269,8 @@ class PipelineIntegrationTests(unittest.TestCase):
         self.assertEqual(job['result']['images'], 1)
         self.assertEqual(len(job['chapters']), 2)
         self.assertEqual(job['chapters'][0]['imageCount'], 1)
-        self.assertIn('MinerU', '\n'.join(job['log']))
+        self.assertIn('解析服务', '\n'.join(job['log']))
+        self.assertNotIn('MinerU 解析中', '\n'.join(job['log']))
 
         first = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/1").get_data(as_text=True)
         second = self.client.get(f"/api/pipeline/pdf/jobs/{job['id']}/preview/2").get_data(as_text=True)

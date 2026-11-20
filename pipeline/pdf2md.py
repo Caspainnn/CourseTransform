@@ -291,7 +291,7 @@ def _write_mineru_chapters(chapters, image_paths, out_dir, log):
             'images': images,
             'imageCount': len(images),
         })
-        _log(log, f'已生成 {md_path.name}（{len(images)} 张图 · MinerU）')
+        _log(log, f'已生成 {md_path.name}（{len(images)} 张图 · 解析服务）')
     return results
 
 
@@ -322,13 +322,13 @@ def extract_pdf(pdf_path, out_dir, log=None):
                     parsed = mineru.parse(pdf_path, out_dir, log)
                 except mineru.MineruError as error:
                     if engine_mode == 'mineru':
-                        raise Problem(f'MinerU 解析失败：{error}', code='E_MINERU_FAILED') from error
-                    _log(log, f'MinerU 解析失败，回退本机 OCR：{error}')
+                        raise Problem(f'解析服务失败：{error}', code='E_MINERU_FAILED') from error
+                    _log(log, f'解析服务失败，回退本机 OCR：{error}')
                 else:
                     mineru_chapters = split_markdown_chapters(parsed['markdown'], pdf_path.stem)
                     mineru_results = _write_mineru_chapters(mineru_chapters, parsed['images'], out_dir, log)
                     if not mineru_results:
-                        raise Problem('MinerU 没有生成章节内容', code='E_MINERU_FAILED')
+                        raise Problem('解析服务没有生成章节内容', code='E_MINERU_FAILED')
                     return {
                         'pdf': str(pdf_path),
                         'pdfName': pdf_path.name,

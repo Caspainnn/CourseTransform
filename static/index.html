@@ -1214,16 +1214,10 @@ input[type="range"]::-moz-range-thumb{
             <label class="drop" id="pdfDrop">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
               <div class="drop-label">拖入 PDF，或<b>点击选择</b></div>
-              <div class="drop-hint">支持文字版与扫描版 PDF · ≤ 30MB · 扫描版优先 MinerU / 本机 OCR</div>
+              <div class="drop-hint">支持文字版与扫描版 PDF · ≤ 30MB · 扫描版由解析服务识别</div>
               <input type="file" id="pdfFile" accept=".pdf" aria-label="上传教材 PDF">
             </label>
             <div id="pdfPicked" class="picked-file" hidden></div>
-            <ul class="check-list" aria-label="解析内容">
-              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>按「第 N 章」切分章节，忽略目录行</li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>x.y / x.y.z 编号标题转为 Markdown 层级</li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>原图按页导出，题注下方插入引用</li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round"><path d="m5 13 4 4L19 7"/></svg>扫描版优先 MinerU，缺省用 RapidOCR</li>
-            </ul>
             <div class="bar-actions" style="margin-top:16px">
               <button class="btn btn-accent" id="pdfStart" disabled>开始解析</button>
               <span id="pdfState" class="hint" aria-live="polite"></span>
@@ -1250,10 +1244,6 @@ input[type="range"]::-moz-range-thumb{
               <h2 id="pdfDocTitle">解析结果</h2>
               <p class="hint" id="pdfDocMeta"></p>
             </div>
-            <div class="bar-actions">
-              <button class="btn btn-sm" id="pdfBundle">下载全部 ZIP</button>
-              <button class="btn btn-sm" id="pdfSendAll" disabled>全部送入教案</button>
-            </div>
           </div>
           <div class="doc-stage-body">
             <article class="doc-panel">
@@ -1266,8 +1256,7 @@ input[type="range"]::-moz-range-thumb{
                 <span class="doc-status" id="pdfDocStatus"></span>
                 <div class="bar-actions doc-actions">
                   <button class="btn btn-sm" id="pdfDocEdit">编辑</button>
-                  <button class="btn btn-sm" id="pdfDocDownload">下载 MD</button>
-                  <button class="btn btn-sm" id="pdfDocImages" hidden>下载原图</button>
+                  <button class="btn btn-sm" id="pdfDocDownload">下载 ZIP</button>
                   <button class="btn btn-sm btn-accent" id="pdfDocHandoff">送入教案</button>
                 </div>
               </div>
@@ -1534,6 +1523,12 @@ input[type="range"]::-moz-range-thumb{
 .stage-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;}
 .stage-grid .stack{display:flex;flex-direction:column;gap:16px;min-width:0;}
 .status-card{position:sticky;top:88px;}
+#pdfJobs{max-height:calc(100vh - 390px);min-height:180px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:#cfc6b8 transparent;}
+#pdfJobs::-webkit-scrollbar{width:8px;}
+#pdfJobs::-webkit-scrollbar-track{background:transparent;}
+#pdfJobs::-webkit-scrollbar-thumb{background:#d8d0c4;border-radius:99px;border:2px solid #fff;}
+#pdfJobs::-webkit-scrollbar-thumb:hover{background:#c4b9a9;}
+@media (max-width:1024px){#pdfJobs{max-height:46vh;}}
 .subhead{font-size:12px;font-weight:600;color:var(--ink-2);margin:4px 0 8px;letter-spacing:.02em;}
 .drop-sm{padding:14px;}
 .picked-file{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fbfaf7;font-size:12.5px;}

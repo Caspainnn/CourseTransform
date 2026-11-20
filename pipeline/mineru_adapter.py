@@ -169,7 +169,7 @@ def parse(pdf_path, out_dir, log=None):
     with tempfile.TemporaryDirectory(prefix='ct-mineru-') as temp:
         root = Path(temp)
         args = _build_args(cli, pdf_path, root)
-        note(f'启动 MinerU（{Path(cli[0]).name} · {tier()}）…')
+        note(f'启动解析服务（{tier()}）…')
         try:
             completed = subprocess.run(
                 args,
@@ -195,7 +195,7 @@ def parse(pdf_path, out_dir, log=None):
         if missing:
             note(f'MinerU 引用了 {len(missing)} 张缺失图片，已在正文中降级为题注')
         elapsed = round(time.time() - started, 1)
-        note(f'MinerU 完成：{len(markdown)} 字符，{len(images)} 张图，{elapsed} 秒')
+        note(f'解析服务完成：{len(markdown)} 字符，{len(images)} 张图，{elapsed} 秒')
     return {
         'markdown': markdown,
         'images': images,
