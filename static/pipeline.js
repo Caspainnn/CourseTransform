@@ -147,6 +147,8 @@
   function renderPdfJob(job){
     const box = $("#pdfResult");
     box.hidden = false;
+    const sendAll = $("#pdfSendAll");
+    if (sendAll) sendAll.disabled = !(job.chapters && job.chapters.length);
     $("#pdfResultTitle").textContent = job.fileName || "解析结果";
     if (job.status === "failed"){
       showPdfError(job.error || "解析失败");
