@@ -206,23 +206,17 @@ scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 
 许可证与第三方边界见 [LICENSE.md](LICENSE.md)、[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-## 登录与数据隔离
+## 登录、数据隔离与模型配置
 
-公网部署必须开启邮箱验证码登录。每个账户的数据写入 `data/users/<uid>/{tasks,files,knowledge,pipeline}`，
-任务/文件/知识库的读取与列表均校验归属，解析与教案任务按用户独立实例运行。
+账户使用**用户名 + 密码**登录（密码 PBKDF2-SHA256，120k 轮加盐）。每个账户的数据写入
+`data/users/<uid>/{tasks,files,knowledge,pipeline}`，任务、文件、知识库与解析/教案任务均按账户隔离。
 
-```bash
-AUTH_SECRET=<32+ 字节随机串>       # 不设则自动生成 data/auth/session-secret.txt
-SMTP_HOST=smtp.example.com
-SMTP_PORT=465
-SMTP_USER=no-reply@example.com
-SMTP_PASS=<smtp 授权码>
-SMTP_FROM=no-reply@example.com
-SMTP_SSL=1
-AUTH_COOKIE_SECURE=1               # HTTPS 部署时开启
-```
+- 未登录时 `/api/*` 一律 401；登录页支持注册与登录，左下角“用户信息”弹窗内可直接退出登录。
+- `AUTH_SECRET` 建议固定；HTTPS 部署设置 `AUTH_COOKIE_SECURE=1`。
+- `AUTH_CLAIM_LEGACY=1` 可让旧的单用户数据在首个账号注册时迁入；上线后应移除。
+- `AUTH_DISABLED=1` 仅供自动化测试，生产禁用。
 
-本机调试可设 `AUTH_DEV_CODE=1`（验证码直接回显，公网禁用）；首次升级可设 `AUTH_CLAIM_LEGACY=1`
-把旧的单用户数据迁入第一个登录账户。`AUTH_DISABLED=1` 仅供自动化测试，切勿在生产开启。
-
-登录后可在左下角“用户信息”菜单退出登录；退出会清空会话，未登录时所有 `/api/*` 返回 401。
+模型管理支持为每个账户添加 OpenAI 兼容的推理/视觉模型：供应商、接口地址、API Key、模型名称、
+工具调用/图片输入/思考模式/自定义协议，以及输入/输出上下文长度。保存后可按“推理/视觉”用途启用，
+调用优先级为“当前用户启用项 → 服务端 `.env` 默认（`LLM_MODEL` / `LLM_OUTLINE_JSON_MODEL`）”。
+API Key 只存本账户目录，列表接口不回传明文。

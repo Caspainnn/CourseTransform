@@ -248,3 +248,95 @@ def guard(app, base):
         if not current_uid():
             return {'error': '请先登录', 'code': 'E_UNAUTHORIZED'}, 401
         return None
+
+# ---- accounts (username + password) -----------------------------------
+
+USERNAME = re.compile(r'^[A-Za-z0-9_.@-]{3,32}$')
+
+
+def _hash_password(password, salt):
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), bytes.fromhex(salt), 120000).hex()
+
+
+def register_user(base, username, password):
+    username = (username or '').strip()
+    password = password or ''
+    if not USERNAME.fullmatch(username):
+        raise ValueError('用户名需为 3-32 位字母、数字或 _.-@')
+    if len(password) < 8:
+        raise ValueError('密码至少 8 位')
+    users = _read(users_path(base), {})
+    key = username.lower()
+    if key in users:
+        raise ValueError('用户名已被占用')
+    salt = secrets.token_hex(16)
+    record = {'id': user_id(username), 'email': username, 'username': username,
+              'salt': salt, 'hash': _hash_password(password, salt),
+              'created': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
+    users[key] = record
+    _write(users_path(base), users)
+    (Path(base) / 'users' / record['id']).mkdir(parents=True, exist_ok=True)
+    return record
+
+
+def authenticate(base, username, password):
+    key = (username or '').strip().lower()
+    record = _read(users_path(base), {}).get(key)
+    if not record or not record.get('salt'):
+        raise ValueError('用户名或密码不正确')
+    if not hmac.compare_digest(record['hash'], _hash_password(password or '', record['salt'])):
+        raise ValueError('用户名或密码不正确')
+    (Path(base) / 'users' / record['id']).mkdir(parents=True, exist_ok=True)
+    return record
+
+
+class _Base:
+    path = None
+
+
+def set_base(base):
+    _Base.path = Path(base)
+
+
+def models_path(uid):
+    root = _Base.path or (Path(__file__).resolve().parent / 'data')
+    return Path(root) / 'users' / uid / 'models.json'
+
+
+def read_models(uid):
+    return _read(models_path(uid), {'items': [], 'active': {}})
+
+
+def save_models(uid, data):
+    _write(models_path(uid), data)
+
+
+def active_model(uid, role):
+    if not uid:
+        return None
+    data = read_models(uid)
+    wanted = (data.get('active') or {}).get(role)
+    for item in data.get('items') or []:
+        if item.get('id') == wanted:
+            return item
+    return None
+
+
+def adopt_legacy(base, uid):
+    """Allow the first password account to take over the pre-auth demo tree."""
+    marker = Path(base) / 'auth' / 'legacy-claimed'
+    if not marker.exists():
+        return
+    old = marker.read_text(encoding='utf-8').strip()
+    if not old or old == uid:
+        return
+    old_record = next((r for r in _read(users_path(base), {}).values() if r.get('id') == old), None)
+    if old_record and old_record.get('salt'):
+        return
+    target = Path(base) / 'users' / uid
+    if any(target.iterdir()):
+        return
+    source = Path(base) / 'users' / old
+    for child in source.iterdir():
+        shutil.move(str(child), str(target / child.name))
+    marker.write_text(uid, encoding='utf-8')

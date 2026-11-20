@@ -1797,36 +1797,56 @@ input[type="range"]::-moz-range-thumb{
 <div id="authGate" class="auth-gate" hidden>
   <div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="authTitle">
     <div class="auth-brand"><span class="auth-mark">知</span><div><b>知序工作台</b><small>TEACH STUDIO</small></div></div>
-    <h1 id="authTitle">使用邮箱登录</h1>
-    <p class="auth-sub">数据按账户隔离。验证码将发送到你的邮箱，仅用于本次登录。</p>
-    <label class="auth-label" for="authEmail">邮箱</label>
-    <input class="auth-input" id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
-    <div class="auth-row">
-      <button class="btn btn-sm" id="btnSendCode" type="button">发送验证码</button>
-      <span class="auth-hint" id="authCooldown"></span>
-    </div>
-    <div id="authCodeRow">
-      <label class="auth-label" for="authCode">验证码</label>
-      <input class="auth-input" id="authCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="点击发送后填入 6 位数字">
+    <h1 id="authTitle">登录</h1>
+    <p class="auth-sub">账号数据相互隔离，仅本人可见。</p>
+    <label class="auth-label" for="authUser">用户名</label>
+    <input class="auth-input" id="authUser" autocomplete="username" placeholder="3-32 位字母、数字或 _.-@">
+    <label class="auth-label" for="authPass">密码</label>
+    <input class="auth-input" id="authPass" type="password" autocomplete="current-password" placeholder="至少 8 位">
+    <div id="authConfirmRow" hidden>
+      <label class="auth-label" for="authPass2">确认密码</label>
+      <input class="auth-input" id="authPass2" type="password" autocomplete="new-password" placeholder="再次输入密码">
     </div>
     <p class="auth-msg" id="authMsg" role="status" aria-live="polite"></p>
     <button class="btn btn-accent auth-submit" id="btnDoLogin" type="button">登录</button>
+    <button class="auth-switch" id="btnAuthSwitch" type="button">没有账号？注册</button>
   </div>
 </div>
 <style>
 .auth-gate{position:fixed;inset:0;z-index:120;background:#f7f7f6;display:grid;place-items:center;padding:24px;}
-.auth-card{width:min(400px,100%);background:#fff;border:1px solid #ebe6dd;border-radius:16px;padding:26px 26px 24px;box-shadow:0 18px 48px rgba(40,32,24,.10);}
+.auth-card{width:min(400px,100%);background:#fff;border:1px solid #ebe6dd;border-radius:16px;padding:26px 26px 22px;box-shadow:0 18px 48px rgba(40,32,24,.10);}
 .auth-brand{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
 .auth-mark{width:32px;height:32px;border-radius:9px;background:#c0502f;color:#fff;display:grid;place-items:center;font-weight:700;}
 .auth-brand b{display:block;font-size:13px;} .auth-brand small{font-size:10px;letter-spacing:.18em;color:#8b857c;}
-.auth-card h1{font-size:20px;margin:0 0 6px;} .auth-sub{margin:0 0 16px;font-size:12.5px;color:#7b756c;line-height:1.6;}
+.auth-card h1{font-size:20px;margin:0 0 6px;} .auth-sub{margin:0 0 14px;font-size:12.5px;color:#7b756c;line-height:1.6;}
 .auth-label{display:block;font-size:12px;color:#6f6961;margin:12px 0 6px;}
 .auth-input{width:100%;height:40px;border:1px solid #e2ddd4;border-radius:9px;padding:0 12px;font-size:14px;background:#fdfdfc;}
 .auth-input:focus{outline:2px solid rgba(192,80,47,.28);border-color:#c0502f;}
-.auth-row{display:flex;align-items:center;gap:10px;margin-top:10px;}
-.auth-hint{font-size:11.5px;color:#9a938a;}
 .auth-msg{min-height:18px;margin:10px 0 4px;font-size:12px;color:#a23d2a;}
 .auth-submit{width:100%;justify-content:center;margin-top:6px;}
+.auth-switch{display:block;width:100%;margin-top:10px;border:0;background:none;color:#8b6a5d;font-size:12px;cursor:pointer;text-align:center;}
+.auth-switch:hover{color:#c0502f;text-decoration:underline;}
+.btn-logout{color:#a23d2a;border-color:#e3c9c2;margin-top:10px;}
+.model-list{display:flex;flex-direction:column;gap:8px;margin:10px 0 4px;}
+.model-item{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #ece7de;border-radius:10px;padding:10px 12px;}
+.model-main b{font-size:13px;} .model-main span{display:block;font-size:11px;color:#8b857c;word-break:break-all;margin-top:2px;}
+.model-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;}
+.tag-on{font-style:normal;font-size:10.5px;color:#2c6b45;background:#e8f4ec;border-radius:999px;padding:2px 7px;}
+.model-add{margin-top:12px;border-top:1px solid #f0ebe2;padding-top:10px;}
+.model-add summary{cursor:pointer;font-size:12.5px;color:#8b6a5d;}
+.model-form{display:flex;flex-direction:column;gap:9px;margin-top:10px;}
+.model-form label{font-size:12px;color:#6f6961;display:flex;flex-direction:column;gap:5px;}
+.model-form select{height:36px;border:1px solid #e2ddd4;border-radius:8px;background:#fdfdfc;padding:0 8px;}
+.model-advanced{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;border-top:1px dashed #eee8de;padding-top:10px;}
+.model-advanced>span{font-size:11px;color:#9a938a;width:100%;}
+.model-advanced .chk{flex-direction:row;align-items:center;gap:5px;font-size:12px;}
+.model-limits{display:flex;align-items:center;gap:6px;width:100%;font-size:12px;color:#6f6961;}
+.model-limits input{width:88px;height:32px;}
+.chips{display:flex;gap:4px;} .chips em{font-style:normal;font-size:10.5px;border:1px solid #e6e0d6;border-radius:6px;padding:2px 6px;cursor:pointer;color:#7d766d;}
+.chips em:hover{border-color:#c0502f;color:#c0502f;}
+.model-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:6px;}
+.account-modal-card .modal-body{max-height:66vh;overflow:auto;}
+
 </style>
 <script src="/static/workbench.js"></script>
 <script src="/static/pipeline.js"></script>

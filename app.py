@@ -88,6 +88,7 @@ def create_app(data_dir=None):
     (base / 'users').mkdir(exist_ok=True)
     (base / 'auth').mkdir(exist_ok=True)
     app.secret_key = auth.secret(base)
+    auth.set_base(base)
     app.config.update(SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE='Lax',
                       SESSION_COOKIE_SECURE=os.environ.get('AUTH_COOKIE_SECURE') == '1',
                       PERMANENT_SESSION_LIFETIME=timedelta(days=30))
@@ -380,26 +381,29 @@ def create_app(data_dir=None):
         uid = auth.current_uid()
         if not uid:
             return jsonify(error='请先登录', code='E_UNAUTHORIZED'), 401
-        email = session.get('email') or ''
-        return jsonify({'id': uid, 'email': email})
+        username = session.get('email') or ''
+        return jsonify({'id': uid, 'username': username})
 
-    @app.post('/api/auth/code')
-    def auth_code_route():
+    @app.post('/api/auth/register')
+    def auth_register():
         body = request.get_json() or {}
         try:
-            result = auth.request_code(base, body.get('email', ''))
+            record = auth.register_user(base, body.get('username', ''), body.get('password', ''))
         except ValueError as error:
             return jsonify(error=str(error), code='E_AUTH'), 400
-        if result.get('delivery') == 'unconfigured':
-            return jsonify(error='邮件服务未配置，无法发送验证码；请配置 SMTP_HOST/SMTP_FROM 或在本机设置 AUTH_DEV_CODE=1',
-                           code='E_MAIL_UNCONFIGURED'), 503
-        return jsonify(result)
+        if os.environ.get('AUTH_CLAIM_LEGACY') == '1':
+            auth.adopt_legacy(base, record['id'])
+        session.clear()
+        session.permanent = True
+        session['uid'] = record['id']
+        session['email'] = record['username']
+        return jsonify({'id': record['id'], 'username': record['username']}), 201
 
     @app.post('/api/auth/login')
     def auth_login():
         body = request.get_json() or {}
         try:
-            record = auth.verify_code(base, body.get('email', ''), body.get('code', ''))
+            record = auth.authenticate(base, body.get('username', ''), body.get('password', ''))
         except ValueError as error:
             return jsonify(error=str(error), code='E_AUTH'), 400
         if os.environ.get('AUTH_CLAIM_LEGACY') == '1':
@@ -407,12 +411,99 @@ def create_app(data_dir=None):
         session.clear()
         session.permanent = True
         session['uid'] = record['id']
-        session['email'] = record['email']
-        return jsonify(auth.public_user(record))
+        session['email'] = record.get('username') or record['email']
+        return jsonify({'id': record['id'], 'username': session['email']})
 
     @app.post('/api/auth/logout')
     def auth_logout():
         session.clear()
+        return jsonify({'ok': True})
+
+
+    def _public_model(item):
+        return {'id': item['id'], 'supplier': item.get('supplier', '自定义'), 'baseUrl': item.get('baseUrl', ''),
+                'model': item.get('model', ''), 'hasKey': bool(item.get('apiKey')),
+                'features': item.get('features') or {}, 'inputTokens': item.get('inputTokens'),
+                'outputTokens': item.get('outputTokens'), 'name': item.get('name') or item.get('model')}
+
+    @app.get('/api/models')
+    def models_list():
+        from pptnative.api import settings
+        uid = auth.current_uid()
+        stored = auth.read_models(uid)
+        configured = settings()
+        defaults = {'reasoning': configured.get('LLM_MODEL') or '', 'vision': configured.get('LLM_OUTLINE_JSON_MODEL') or ''}
+        return jsonify({'items': [_public_model(x) for x in stored.get('items', [])],
+                        'active': stored.get('active', {}), 'defaults': defaults,
+                        'serverConfigured': bool(configured.get('LLM_API_KEY'))})
+
+    @app.post('/api/models')
+    def models_add():
+        from pptnative.api import probe
+        body = request.get_json() or {}
+        model = str(body.get('model', '')).strip()
+        url = str(body.get('baseUrl', '')).strip().rstrip('/')
+        key = str(body.get('apiKey', '')).strip()
+        if not model or not re.match(r'^[\w./:-]{1,120}$', model):
+            raise Problem('请填写有效的模型名称')
+        if not re.match(r'^https?://', url):
+            raise Problem('接口地址需以 http:// 或 https:// 开头')
+        if not key:
+            raise Problem('请填写 API Key')
+        if body.get('test'):
+            try:
+                probe(url, key, model, timeout=30)
+            except Exception as error:
+                raise Problem(f'连接测试失败：{error}', 400, 'E_MODEL_TEST') from error
+        uid = auth.current_uid()
+        stored = auth.read_models(uid)
+        item = {'id': uuid.uuid4().hex, 'supplier': body.get('supplier') or '自定义', 'baseUrl': url,
+                'apiKey': key, 'model': model, 'name': body.get('name') or model,
+                'features': {k: bool((body.get('features') or {}).get(k)) for k in
+                             ('tools', 'vision', 'thinking', 'customProtocol')},
+                'inputTokens': body.get('inputTokens'), 'outputTokens': body.get('outputTokens'),
+                'created': now()}
+        stored.setdefault('items', []).append(item)
+        role = body.get('role')
+        if role in ('reasoning', 'vision'):
+            stored.setdefault('active', {})[role] = item['id']
+        auth.save_models(uid, stored)
+        return jsonify(_public_model(item)), 201
+
+    @app.post('/api/models/<ident>/activate')
+    def models_activate(ident):
+        body = request.get_json() or {}
+        role = body.get('role')
+        if role not in ('reasoning', 'vision'):
+            raise Problem('模型用途无效')
+        uid = auth.current_uid()
+        stored = auth.read_models(uid)
+        if ident not in {x['id'] for x in stored.get('items', [])}:
+            raise Problem('模型不存在', 404, 'E_NOT_FOUND')
+        stored.setdefault('active', {})[role] = ident
+        auth.save_models(uid, stored)
+        return jsonify({'ok': True, 'active': stored['active']})
+
+    @app.delete('/api/models/<ident>')
+    def models_delete(ident):
+        uid = auth.current_uid()
+        stored = auth.read_models(uid)
+        stored['items'] = [x for x in stored.get('items', []) if x['id'] != ident]
+        for role, value in list((stored.get('active') or {}).items()):
+            if value == ident:
+                stored['active'].pop(role)
+        auth.save_models(uid, stored)
+        return jsonify({'ok': True})
+
+    @app.post('/api/models/test')
+    def models_test():
+        from pptnative.api import probe
+        body = request.get_json() or {}
+        try:
+            probe(str(body.get('baseUrl', '')).strip(), str(body.get('apiKey', '')).strip(),
+                  str(body.get('model', '')).strip(), timeout=30)
+        except Exception as error:
+            return jsonify(error=str(error), code='E_MODEL_TEST'), 400
         return jsonify({'ok': True})
 
     auth.guard(app, base)

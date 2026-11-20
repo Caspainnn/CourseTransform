@@ -9,7 +9,7 @@ import uuid
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-from .api import call, settings, image_content
+from .api import call, settings, image_content, model_name
 from .style import ensure_profile
 
 
@@ -36,7 +36,7 @@ def ask(directory, stage, instruction, payload, visual=False, images=(), require
                 shutil.move(str(path), archive / path.name)
     key = "LLM_OUTLINE_JSON_MODEL" if visual else "LLM_MODEL"
     content = json.dumps(payload, ensure_ascii=False)
-    save(directory / f"{stage}.request.json", {"model": settings()[key], "instruction": instruction,
+    save(directory / f"{stage}.request.json", {"model": model_name(key), "instruction": instruction,
                                             "input": payload, "required_fields": list(required)})
     if images:
         content = [{"type": "text", "text": content}]

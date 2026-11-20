@@ -659,8 +659,93 @@
     accountModal.classList.remove("open");
     document.body.style.overflow = "";
   }
+  function renderUserPanel(body){
+    const name=authUser?.username||"";
+    const initial=(name||"我").slice(0,1).toUpperCase();
+    body.innerHTML=`<div class="acct-user"><div class="avatar" aria-hidden="true">${esc(initial)}</div>
+      <div><b>${esc(name||"未命名账号")}</b><span>已登录 · 数据仅本人可见</span></div></div>
+      <div class="acct-row"><span>登录方式</span><b>账号密码</b></div>
+      <div class="acct-row"><span>数据位置</span><b>我的账户目录</b></div>
+      <div class="acct-row"><span>资料范围</span><b>仅本人可见 · 本地存储</b></div>
+      <p class="acct-note">退出后需重新输入账号密码；资料与产物按保留期清理，请及时下载。</p>
+      <button class="btn btn-sm btn-logout" id="acctLogout" type="button">退出登录</button>`;
+    $("#acctLogout").addEventListener("click",doLogout);
+  }
+  function modelFormHtml(data){
+    return `<div class="model-list">${(data.items||[]).length?(data.items||[]).map(item=>{
+      const marks=[]; const active=data.active||{};
+      if(active.reasoning===item.id) marks.push('<em class="tag-on">推理中</em>');
+      if(active.vision===item.id) marks.push('<em class="tag-on">视觉中</em>');
+      return `<div class="model-item"><div class="model-main"><b>${esc(item.name||item.model)}</b>
+        <span>${esc(item.supplier)} · ${esc(item.model)} · ${esc(item.baseUrl)}</span></div>
+        <div class="model-actions">${marks.join("")}
+          <button class="mini-btn" data-use="reasoning" data-id="${item.id}">用于推理</button>
+          <button class="mini-btn" data-use="vision" data-id="${item.id}">用于视觉</button>
+          <button class="mini-btn" data-del="${item.id}">删除</button></div></div>`;
+    }).join(""):'<div class="empty-ref">还没有自定义模型，当前使用服务端默认模型。</div>'}</div>`;
+  }
+  async function renderModelsPanel(body){
+    body.innerHTML='<div class="empty-ref">加载模型配置…</div>';
+    let data;
+    try{ data=await fetch("/api/models").then(r=>r.json()); }
+    catch(error){ body.innerHTML='<div class="empty-ref">模型配置加载失败</div>'; return; }
+    const defaults=data.defaults||{};
+    body.innerHTML=`<p class="acct-note">默认模型：推理 <b>${esc(defaults.reasoning||"未配置")}</b> · 视觉 <b>${esc(defaults.vision||"未配置")}</b>。自定义后按用途生效。</p>
+      ${modelFormHtml(data)}
+      <details class="model-add" ${(data.items||[]).length?"":"open"}><summary>添加模型</summary>
+      <form id="modelForm" class="model-form">
+        <label>供应商<select id="mSupplier"><option>自定义</option><option>OpenAI 兼容</option></select></label>
+        <label>接口地址<input class="auth-input" id="mUrl" placeholder="https://api.example.com/v1"></label>
+        <label>API Key<input class="auth-input" id="mKey" type="password" placeholder="输入你的 API Key"></label>
+        <label>模型名称<input class="auth-input" id="mModel" placeholder="例如 gpt-4o 或 openai/gpt-4o"></label>
+        <label>用途<select id="mRole"><option value="reasoning">推理模型</option><option value="vision">视觉模型</option></select></label>
+        <div class="model-advanced"><span>高级配置</span>
+          <label class="chk"><input type="checkbox" id="mTools" checked> 工具调用</label>
+          <label class="chk"><input type="checkbox" id="mVision"> 图片输入</label>
+          <label class="chk"><input type="checkbox" id="mThink"> 思考模式</label>
+          <label class="chk"><input type="checkbox" id="mCustom"> 自定义协议</label>
+          <div class="model-limits"><span>输入</span><input id="mIn" class="auth-input" placeholder="128K">
+            <div class="chips"><em data-tok="mIn">32K</em><em data-tok="mIn">64K</em><em data-tok="mIn">128K</em><em data-tok="mIn">256K</em></div></div>
+          <div class="model-limits"><span>输出</span><input id="mOut" class="auth-input" placeholder="16K">
+            <div class="chips"><em data-tok="mOut">8K</em><em data-tok="mOut">16K</em><em data-tok="mOut">32K</em><em data-tok="mOut">64K</em></div></div>
+        </div>
+        <p class="auth-msg" id="mMsg"></p>
+        <div class="model-foot"><button class="btn btn-sm" type="button" id="mTest">测试连接</button>
+          <button class="btn btn-sm btn-accent" type="submit">保存</button></div>
+      </form></details>`;
+    const form=$("#modelForm");
+    body.querySelectorAll("[data-tok]").forEach(chip=>chip.addEventListener("click",()=>{ $("#"+chip.dataset.tok).value=chip.textContent; }));
+    body.querySelectorAll("[data-use]").forEach(btn=>btn.addEventListener("click",async()=>{
+      try{ await fetch(`/api/models/${btn.dataset.id}/activate`,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({role:btn.dataset.use})}); renderModelsPanel(body); }
+      catch(error){ toast("切换失败"); }
+    }));
+    body.querySelectorAll("[data-del]").forEach(btn=>btn.addEventListener("click",async()=>{
+      if(!confirm("删除该模型配置？")) return;
+      await fetch(`/api/models/${btn.dataset.del}`,{method:"DELETE"}); renderModelsPanel(body);
+    }));
+    const payload=()=>({supplier:$("#mSupplier").value,baseUrl:$("#mUrl").value.trim(),apiKey:$("#mKey").value.trim(),
+      model:$("#mModel").value.trim(),role:$("#mRole").value,inputTokens:$("#mIn").value.trim(),outputTokens:$("#mOut").value.trim(),
+      features:{tools:$("#mTools").checked,vision:$("#mVision").checked,thinking:$("#mThink").checked,customProtocol:$("#mCustom").checked}});
+    $("#mTest").addEventListener("click",async()=>{
+      const msg=$("#mMsg"); msg.textContent="正在测试连接…";
+      try{ const r=await fetch("/api/models/test",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(payload())}); const d=await r.json();
+        msg.textContent=r.ok?"连接成功":("连接失败："+(d.error||r.status)); }
+      catch(error){ msg.textContent="连接失败：网络异常"; }
+    });
+    form.addEventListener("submit",async event=>{
+      event.preventDefault(); const msg=$("#mMsg"); msg.textContent="正在保存…";
+      try{ const r=await fetch("/api/models",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload())});
+        const d=await r.json(); if(!r.ok){ msg.textContent=d.error||"保存失败"; return; }
+        await renderModelsPanel(body); }
+      catch(error){ msg.textContent="保存失败：网络异常"; }
+    });
+  }
   function renderAccountModal(kind){
     const body = $("#accountModalBody");
+    if(kind === "user"){ renderUserPanel(body); return; }
+    if(kind === "model"){ renderModelsPanel(body); return; }
     if(kind === "user"){
       body.innerHTML = `
         <div class="acct-user"><div class="avatar" aria-hidden="true">本</div><div><b>当前用户</b><span>教学工作台</span></div></div>
@@ -998,51 +1083,48 @@
 
   /* ================= 初始化 ================= */
   /* ================= 登录 ================= */
-  let authUser=null, cooldownTimer=null;
+  let authUser=null, authMode="login";
   function showAuthGate(show=true){
     const gate=$("#authGate"); if(!gate) return;
     gate.hidden=!show;
     document.body.style.overflow=show?"hidden":"";
-    if(show) setTimeout(()=>$("#authEmail").focus(),50);
+    if(show) setTimeout(()=>$("#authUser").focus(),60);
   }
   function applyUser(user){
     authUser=user;
-    $$(".user-chip b").forEach(x=>x.textContent=user.email);
+    const name=user.username||user.email||"";
+    $$(".user-chip b").forEach(x=>x.textContent=name);
     $$(".user-chip span").forEach(x=>x.textContent="数据仅本人可见");
     const head=$("#accountPopover .ap-head");
     if(head){ const b=head.querySelector("b"), sp=head.querySelector("span");
-      if(b) b.textContent=user.email; if(sp) sp.textContent="已登录 · 数据隔离"; }
-    const avatar=$("#accountPopover .avatar"); if(avatar) avatar.textContent=user.email.slice(0,1).toUpperCase();
+      if(b) b.textContent=name; if(sp) sp.textContent="已登录 · 数据隔离"; }
+    const avatar=$("#accountPopover .avatar"); if(avatar) avatar.textContent=(name||"我").slice(0,1).toUpperCase();
   }
   async function authBoot(){
     try{ const r=await fetch("/api/auth/me"); if(r.ok){ applyUser(await r.json()); return true; } }catch(error){}
     showAuthGate(true); return false;
   }
   function authMsg(text){ const el=$("#authMsg"); if(el) el.textContent=text||""; }
-  async function sendAuthCode(){
-    const email=$("#authEmail").value.trim();
-    if(!email){ authMsg("请填写邮箱"); return; }
-    const button=$("#btnSendCode"); button.disabled=true; authMsg("正在发送…");
-    try{
-      const r=await fetch("/api/auth/code",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email})});
-      const d=await r.json();
-      if(!r.ok){ authMsg(d.error||"发送失败"); return; }
-      $("#authCodeRow").hidden=false; $("#authCode").focus();
-      if(d.devCode){ $("#authCode").value=d.devCode; authMsg("本机调试验证码已填入：" + d.devCode); }
-      else authMsg("验证码已发送，请查收邮箱（10 分钟内有效）");
-      let left=45; const tick=()=>{ $("#authCooldown").textContent=left>0?`${left}s 后可重发`:""; if(left--<=0){clearInterval(cooldownTimer);button.disabled=false;} };
-      clearInterval(cooldownTimer); button.disabled=true; tick(); cooldownTimer=setInterval(tick,1000);
-    }catch(error){ authMsg("网络异常，请重试"); }
-    finally{ button.disabled = button.disabled || false; }
+  function setAuthMode(mode){
+    authMode=mode; const registering=mode==="register";
+    $("#authTitle").textContent=registering?"注册账号":"登录";
+    $("#authConfirmRow").hidden=!registering;
+    $("#btnDoLogin").textContent=registering?"注册并登录":"登录";
+    $("#btnAuthSwitch").textContent=registering?"已有账号？登录":"没有账号？注册";
+    $("#authPass").setAttribute("autocomplete", registering?"new-password":"current-password");
+    authMsg("");
   }
-  async function doLogin(){
-    const email=$("#authEmail").value.trim(), code=$("#authCode").value.trim();
-    if(!email||!/^\d{6}$/.test(code)){ authMsg("请输入邮箱和 6 位验证码"); return; }
-    const button=$("#btnDoLogin"); button.disabled=true; authMsg("正在登录…");
+  async function submitAuth(){
+    const username=$("#authUser").value.trim(), password=$("#authPass").value;
+    if(!username||!password){ authMsg("请填写用户名和密码"); return; }
+    if(authMode==="register" && password!==$("#authPass2").value){ authMsg("两次输入的密码不一致"); return; }
+    if(authMode==="register" && password.length<8){ authMsg("密码至少 8 位"); return; }
+    const button=$("#btnDoLogin"); button.disabled=true; authMsg(authMode==="register"?"正在创建账号…":"正在登录…");
     try{
-      const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,code})});
+      const r=await fetch("/api/auth/"+authMode,{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({username,password})});
       const d=await r.json();
-      if(!r.ok){ authMsg(d.error||"登录失败"); button.disabled=false; return; }
+      if(!r.ok){ authMsg(d.error||"操作失败"); button.disabled=false; return; }
       location.reload();
     }catch(error){ authMsg("网络异常，请重试"); button.disabled=false; }
   }
@@ -1050,11 +1132,11 @@
     try{ await fetch("/api/auth/logout",{method:"POST"}); }catch(error){}
     location.reload();
   }
-  $("#btnSendCode").addEventListener("click",sendAuthCode);
-  $("#btnDoLogin").addEventListener("click",doLogin);
+  $("#btnDoLogin").addEventListener("click",submitAuth);
+  $("#btnAuthSwitch").addEventListener("click",()=>setAuthMode(authMode==="login"?"register":"login"));
   $("#btnLogout").addEventListener("click",doLogout);
-  $("#authEmail").addEventListener("keydown",e=>{ if(e.key==="Enter") sendAuthCode(); });
-  $("#authCode").addEventListener("keydown",e=>{ if(e.key==="Enter") doLogin(); });
+  $("#authPass2").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
+  $("#authPass").addEventListener("keydown",e=>{ if(e.key==="Enter") submitAuth(); });
 
   setCount(12);
   renderRefs();
