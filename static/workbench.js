@@ -645,11 +645,11 @@
     const body = $("#accountModalBody");
     if(kind === "user"){
       body.innerHTML = `
-        <div class="acct-user"><div class="avatar" aria-hidden="true">本</div><div><b>本机用户</b><span>本地教学工作台</span></div></div>
-        <div class="acct-row"><span>账户体系</span><b>未启用（本机单用户）</b></div>
+        <div class="acct-user"><div class="avatar" aria-hidden="true">本</div><div><b>当前用户</b><span>教学工作台</span></div></div>
+        <div class="acct-row"><span>账户体系</span><b>未启用（单用户）</b></div>
         <div class="acct-row"><span>数据位置</span><b>项目 data/ 目录</b></div>
-        <div class="acct-row"><span>资料范围</span><b>仅本机 · 无云同步</b></div>
-        <p class="acct-note">不提供账号、多租户或云同步；上传资料与生成产物不会离开本机（模型调用除外，由服务端配置决定）。</p>`;
+        <div class="acct-row"><span>资料范围</span><b>本地存储 · 无云同步</b></div>
+        <p class="acct-note">不提供账号、多租户或云同步；资料与产物按保留期清理，请及时下载。</p>`;
       return;
     }
     if(kind === "knowledge"){
@@ -659,7 +659,7 @@
       body.innerHTML = `
         <div class="acct-toolbar"><span>共 <b>${KB_DATA.length}</b> 份资料</span><button class="btn btn-sm" id="acctKbRefresh" type="button">刷新</button></div>
         <div class="acct-list">${rows}</div>
-        <p class="acct-note">最近产物仅用于本次/近期交接；请及时下载 ZIP 自行保存。教案与 PPT 阶段可选择本机近期产物。</p>`;
+        <p class="acct-note">最近产物仅用于本次/近期交接；请及时下载 ZIP 自行保存。教案与 PPT 阶段可选择近期产物。</p>`;
       $("#acctKbRefresh").addEventListener("click", async ()=>{
         try{ await refreshKnowledge(); renderAccountModal("knowledge"); renderAccountSummary(); }
         catch(error){ report(error); }
@@ -683,14 +683,14 @@
   }
   function openAccountModal(kind){
     const meta = {
-      user:{title:"用户信息", sub:"本机账户与数据位置"},
+      user:{title:"用户信息", sub:"账户与数据位置"},
       knowledge:{title:"最近产物", sub:"本次与近期生成的文件"},
       model:{title:"模型管理", sub:"服务端模型与运行时状态"}
     }[kind];
     closeAccountPopover();
     $("#accountModalTitle").textContent = meta.title;
     $("#accountModalSub").textContent = meta.sub;
-    $("#accountModalHint").textContent = kind === "knowledge" ? "本机资料库" : "本机设置";
+    $("#accountModalHint").textContent = kind === "knowledge" ? "资料库" : "设置";
     accountModal.classList.add("open");
     document.body.style.overflow = "hidden";
     renderAccountModal(kind);

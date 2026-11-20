@@ -760,9 +760,9 @@ input[type="range"]::-moz-range-thumb{
     </div>
 
     <div class="sidebar-foot">
-      <button class="user-chip" id="btnLocalUser" type="button" aria-label="打开本机设置" aria-haspopup="true" aria-expanded="false">
+      <button class="user-chip" id="btnLocalUser" type="button" aria-label="打开设置" aria-haspopup="true" aria-expanded="false">
         <div class="avatar" aria-hidden="true">本</div>
-        <div><b>本机用户</b><span>本地教学工作台</span></div>
+        <div><b>当前用户</b><span>教学工作台</span></div>
       </button>
 
 
@@ -822,7 +822,7 @@ input[type="range"]::-moz-range-thumb{
 
         <div class="draft-note">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
-          任务与历史版本保存在本机，制作过程会自动保存
+          任务与历史版本会自动保存
         </div>
       </div>
 
@@ -1186,7 +1186,6 @@ input[type="range"]::-moz-range-thumb{
           <div>
             <div class="eyebrow">Workflow 01 / Textbook</div>
             <h1>教材 PDF，<em>转成可编辑 MD</em></h1>
-            <p>本机提取文字版 PDF 的章节、编号标题与原图，生成逐章 Markdown。扫描版优先 MinerU（本机已安装时），否则走本机 OCR；失败会明确报错，不伪造文字。</p>
           </div>
         </div>
 
@@ -1203,15 +1202,15 @@ input[type="range"]::-moz-range-thumb{
           <div class="progress-actions"><button class="btn btn-sm" id="pdfProgressBack">后台运行</button></div>
         </section>
 
-        <div class="stage-grid" id="pdfWorkspace">
+        <div class="pdf-workspace" id="pdfWorkspace">
           <section class="card">
             <div class="card-head">
-              <div><h2 class="card-title">选择教材 PDF</h2><p class="card-sub">仅本机解析，文件不会自动发往模型服务</p></div>
+              <div><h2 class="card-title">选择教材 PDF</h2></div>
             </div>
             <label class="drop" id="pdfDrop">
               <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7.5 8.5 4.5-4.5 4.5 4.5"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
               <div class="drop-label">拖入 PDF，或<b>点击选择</b></div>
-              <div class="drop-hint">支持文字版与扫描版 PDF · ≤ 30MB · 扫描版由解析服务识别</div>
+              <div class="drop-hint">PDF · ≤ 30MB</div>
               <input type="file" id="pdfFile" accept=".pdf" aria-label="上传教材 PDF">
             </label>
             <div id="pdfPicked" class="picked-file" hidden></div>
@@ -1220,14 +1219,13 @@ input[type="range"]::-moz-range-thumb{
               <span id="pdfState" class="hint" aria-live="polite"></span>
             </div>
           </section>
-          <aside class="card status-card">
+          <section class="card">
             <div class="card-head">
-              <div><h2 class="card-title">本机解析任务</h2><p class="card-sub">刷新或重启后可从这里恢复查看</p></div>
+              <div><h2 class="card-title">解析任务</h2></div>
               <button class="btn btn-sm" id="pdfRefresh">刷新</button>
             </div>
-            <div id="pdfJobs" class="job-list"><div class="empty-ref">还没有解析任务</div></div>
-            <div class="notice small"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg><span>未完成任务在重启后标记为中断，原始 PDF 保留，可重试。</span></div>
-          </aside>
+            <div id="pdfJobs" class="job-list horizontal"><div class="empty-ref">还没有解析任务</div></div>
+          </section>
         </div>
         <div id="pdfError" class="notice danger" hidden role="alert"><span id="pdfErrorText"></span></div>
 
@@ -1278,7 +1276,6 @@ input[type="range"]::-moz-range-thumb{
           <div>
             <div class="eyebrow">Workflow 02 / Lesson plan</div>
             <h1>教材 MD，<em>套模板成教案</em></h1>
-            <p>整章教材与单学时模板交给教案引擎：按实验数拆学时，每个学时一份原位套模板 Word，并保留质检与验收结果。</p>
           </div>
         </div>
         <section class="gen-stage word-progress" id="wordProgressStage" hidden aria-live="polite">
@@ -1296,7 +1293,7 @@ input[type="range"]::-moz-range-thumb{
           <div class="stack">
             <section class="card">
               <div class="card-head">
-                <div><h2 class="card-title">1. 基础信息填写</h2><p class="card-sub">模型使用服务端默认配置；这些信息会写入教案封面，并影响学时拆分与内容深度</p></div>
+                <div><h2 class="card-title">基础信息</h2></div>
               </div>
               <div class="form-grid">
                 <div class="field"><label for="wordSubject">学科</label><input class="control" id="wordSubject" type="text" value="信息科技"></div>
@@ -1317,13 +1314,9 @@ input[type="range"]::-moz-range-thumb{
 
             <section class="card">
               <div class="card-head">
-                <div><h2 class="card-title">2. 教材与模板</h2><p class="card-sub">教材 Markdown、单学时模板与配图会一起交给教案引擎</p></div>
+                <div><h2 class="card-title">参考资料</h2></div>
               </div>
-              <div class="ref-head">
-                <div><b>参考资料</b><span>来自最近产物，可多选</span></div>
-                <span class="badge ok">已连接</span>
-              </div>
-              <div id="wordRefList" class="word-ref-list"><div class="empty-ref">还没有引用任何资料，从最近产物选择或上传本地文件</div></div>
+              <div id="wordRefList" class="word-ref-list"><div class="empty-ref">选择教材或上传文件</div></div>
               <div class="ref-picker" role="group" aria-label="添加参考资料">
                 <button type="button" id="wordKbPick">
                   <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.2-4.2"/></svg>
@@ -1335,7 +1328,6 @@ input[type="range"]::-moz-range-thumb{
                 </button>
               </div>
               <input type="file" id="wordLocalFiles" accept=".md,.markdown,.docx,image/*" multiple hidden aria-label="本地上传教材、模板或配图">
-              <div class="hint" style="margin-top:8px">最近产物提供 Markdown 教材；教案模板与配图可本地上传；配图可填写图注。</div>
               <div class="bar-actions" style="margin-top:16px">
                 <button class="btn btn-accent" id="wordStart">开始生成教案</button>
                 <span id="wordState" class="hint" aria-live="polite"></span>
@@ -1359,11 +1351,36 @@ input[type="range"]::-moz-range-thumb{
             <div id="wordJobs" class="job-list compact"><div class="empty-ref">暂无任务</div></div>
           </aside>
         </div>
-        <section id="wordResults" class="card stage-result" hidden>
-          <div class="card-head">
-            <div><h2 class="card-title">生成的教案</h2><p class="card-sub" id="wordResultMeta"></p></div>
+        <section class="doc-stage" id="lessonStage" hidden>
+          <div class="doc-stage-head">
+            <button class="btn btn-sm" id="lessonBack">
+              <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6"/><path d="m11 7-5 5 5 5"/></svg>
+              返回
+            </button>
+            <div class="doc-stage-title">
+              <h2 id="lessonTitle">生成的教案</h2>
+              <p class="hint" id="lessonMeta"></p>
+            </div>
           </div>
-          <div id="wordDocx" class="result-grid"></div>
+          <div class="doc-stage-body">
+            <article class="doc-panel">
+              <div class="doc-toolbar">
+                <div class="seg" role="tablist" aria-label="视图切换">
+                  <button class="seg-btn on" type="button" role="tab" aria-selected="true" data-lesson-view="render">教案预览</button>
+                  <button class="seg-btn" type="button" role="tab" aria-selected="false" data-lesson-view="text">纯文本</button>
+                </div>
+                <select class="chapter-select" id="lessonDocSelect" aria-label="选择学时" hidden></select>
+                <span class="doc-status" id="lessonDocStatus"></span>
+                <div class="bar-actions doc-actions">
+                  <button class="btn btn-sm" id="lessonDocEdit">编辑 Word</button>
+                  <button class="btn btn-sm" id="lessonDocDownload">下载 DOCX</button>
+                  <button class="btn btn-sm btn-accent" id="lessonDocHandoff">送入 PPT</button>
+                </div>
+              </div>
+              <div class="doc-view md-body" id="lessonDocRender" role="tabpanel"></div>
+              <pre class="doc-view doc-raw" id="lessonDocText" hidden></pre>
+            </article>
+          </div>
         </section>
       </div>
 
@@ -1399,7 +1416,7 @@ input[type="range"]::-moz-range-thumb{
       <div id="accountPopover" class="account-popover" hidden role="menu" aria-label="账户菜单">
         <div class="ap-head">
           <div class="avatar" aria-hidden="true">本</div>
-          <div><b>本机用户</b><span>本地教学工作台</span></div>
+          <div><b>当前用户</b><span>教学工作台</span></div>
         </div>
         <div class="ap-stats">
           <div><span>最近产物</span><b id="apKbCount">0 份</b></div>
@@ -1408,7 +1425,7 @@ input[type="range"]::-moz-range-thumb{
         <div class="ap-menu">
           <button type="button" data-account-panel="user" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"/><path d="M5.5 20c.7-3.4 3.4-5.2 6.5-5.2s5.8 1.8 6.5 5.2"/></svg>
-            <span><b>用户信息</b><small>本机账户与数据位置</small></span><em>›</em>
+            <span><b>用户信息</b><small>账户与数据位置</small></span><em>›</em>
           </button>
           <button type="button" data-account-panel="knowledge" role="menuitem">
             <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5V5.5Z"/><path d="M8 7h7"/></svg>
@@ -1419,7 +1436,7 @@ input[type="range"]::-moz-range-thumb{
             <span><b>模型管理</b><small>服务端模型与运行时</small></span><em>›</em>
           </button>
         </div>
-        <div class="ap-foot">本机单用户 · 资料与任务仅保存在本机</div>
+        <div class="ap-foot">单用户 · 资料与任务按保留期清理</div>
       </div>
 
 <!-- ==== Lesson DOCX edit modal ==== -->
@@ -1500,7 +1517,7 @@ input[type="range"]::-moz-range-thumb{
     <div class="modal-head">
       <div>
         <h2 id="accountModalTitle">用户信息</h2>
-        <p id="accountModalSub">本机账户与数据位置</p>
+        <p id="accountModalSub">账户与数据位置</p>
       </div>
       <button class="icon-btn" id="accountModalClose" aria-label="关闭">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1508,7 +1525,7 @@ input[type="range"]::-moz-range-thumb{
     </div>
     <div class="modal-body" id="accountModalBody"></div>
     <div class="modal-foot">
-      <span class="picked" id="accountModalHint">本机设置</span>
+      <span class="picked" id="accountModalHint">设置</span>
       <div class="bar-actions">
         <button class="btn btn-sm btn-accent" id="accountModalDone" type="button">完成</button>
       </div>
@@ -1553,12 +1570,15 @@ input[type="range"]::-moz-range-thumb{
 .stage-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start;}
 .stage-grid .stack{display:flex;flex-direction:column;gap:16px;min-width:0;}
 .status-card{position:sticky;top:88px;}
-#pdfJobs{max-height:calc(100vh - 390px);min-height:180px;overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-color:#cfc6b8 transparent;}
-#pdfJobs::-webkit-scrollbar{width:8px;}
+.pdf-workspace{display:flex;flex-direction:column;gap:16px;}
+.pdf-workspace>.card{width:100%;}
+#pdfJobs{display:flex;flex-direction:row;flex-wrap:nowrap;gap:12px;overflow-x:auto;overflow-y:hidden;padding:0 0 8px;scrollbar-width:thin;scrollbar-color:#cfc6b8 transparent;overscroll-behavior-x:contain;}
+#pdfJobs .job-card{flex:0 0 280px;width:280px;max-width:280px;min-width:0;}
+#pdfJobs .empty-ref{flex:1;min-width:240px;}
+#pdfJobs::-webkit-scrollbar{height:8px;}
 #pdfJobs::-webkit-scrollbar-track{background:transparent;}
-#pdfJobs::-webkit-scrollbar-thumb{background:#d8d0c4;border-radius:99px;border:2px solid #fff;}
+#pdfJobs::-webkit-scrollbar-thumb{background:#d8d0c4;border-radius:99px;}
 #pdfJobs::-webkit-scrollbar-thumb:hover{background:#c4b9a9;}
-@media (max-width:1024px){#pdfJobs{max-height:46vh;}}
 .subhead{font-size:12px;font-weight:600;color:var(--ink-2);margin:4px 0 8px;letter-spacing:.02em;}
 .drop-sm{padding:14px;}
 .picked-file{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--radius-sm);background:#fbfaf7;font-size:12.5px;}

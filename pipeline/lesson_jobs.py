@@ -420,7 +420,8 @@ class LessonJobManager:
         results = job.get('results') or []
         if not 0 < index <= len(results):
             return None
-        path = (results[index - 1].get('files') or {}).get('md') or ''
+        files = results[index - 1].get('files') or {}
+        path = files.get('markdown') or files.get('md') or ''
         return Path(path) if Path(path).is_file() else None
 
     def log(self, ident):

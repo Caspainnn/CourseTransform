@@ -49,7 +49,7 @@ def ocr_page_texts(doc, page_numbers, log=None):
         from rapidocr_onnxruntime import RapidOCR
     except ImportError as error:
         raise Problem(
-            '本机未安装 OCR 依赖 rapidocr_onnxruntime，无法识别扫描版 PDF。'
+            '未安装 OCR 依赖 rapidocr_onnxruntime，无法识别扫描版 PDF。'
             '请执行 pip install -r requirements.lock.txt 后重试，或改用 MinerU 草稿 Markdown。',
             code='E_OCR_UNAVAILABLE',
         ) from error
@@ -84,10 +84,10 @@ def ocr_page_texts(doc, page_numbers, log=None):
                 lines.append((top, left, text, score, right))
                 confidences.append(score)
             texts[page_no] = '\n'.join(_ocr_rows(lines))
-            _log(log, f'本机 OCR 第 {index}/{len(page_numbers)} 页：{len(lines)} 行')
+            _log(log, f'OCR 识别第 {index}/{len(page_numbers)} 页：{len(lines)} 行')
     if not texts:
         raise Problem(
-            '扫描版 PDF 的本机 OCR 没有产生可用文字。请确认页面清晰度，或改用 MinerU 草稿 Markdown。',
+            '扫描版 PDF 的 OCR 没有产生可用文字。请确认页面清晰度，或改用 MinerU 草稿 Markdown。',
             code='E_OCR_FAILED',
         )
     return texts, {
@@ -323,7 +323,7 @@ def extract_pdf(pdf_path, out_dir, log=None):
                 except mineru.MineruError as error:
                     if engine_mode == 'mineru':
                         raise Problem(f'解析服务失败：{error}', code='E_MINERU_FAILED') from error
-                    _log(log, f'解析服务失败，回退本机 OCR：{error}')
+                    _log(log, f'解析服务失败，回退 OCR：{error}')
                 else:
                     mineru_chapters = split_markdown_chapters(parsed['markdown'], pdf_path.stem)
                     mineru_results = _write_mineru_chapters(mineru_chapters, parsed['images'], out_dir, log)
@@ -350,22 +350,22 @@ def extract_pdf(pdf_path, out_dir, log=None):
                     f'检测到 {len(need_ocr)} 页需要 OCR，超过单次上限 {OCR_MAX_PAGES} 页；请按章节拆分后再上传。',
                     code='E_OCR_TOO_LARGE',
                 )
-            _log(log, f'检测到 {len(need_ocr)}/{doc.page_count} 页无可用文字，启动本机 OCR（RapidOCR）…')
+            _log(log, f'检测到 {len(need_ocr)}/{doc.page_count} 页无可用文字，启动 OCR 识别…')
             ocr_texts, ocr_stats = ocr_page_texts(doc, need_ocr, log)
             for page_no, text in ocr_texts.items():
                 texts[page_no - 1] = text
             total = sum(len(text.strip()) for text in texts)
             if total < MIN_TEXT_CHARS:
                 raise Problem(
-                    '扫描版 PDF 的本机 OCR 没有识别出可用文字。请确认扫描清晰度，或改用 MinerU 草稿 Markdown。',
+                    '扫描版 PDF 的 OCR 没有识别出可用文字。请确认扫描清晰度，或改用 MinerU 草稿 Markdown。',
                     code='E_OCR_FAILED',
                 )
         elif total < MIN_TEXT_CHARS:
-            reason = '本机 OCR 已被 PDF_OCR=0 关闭' if not ocr_enabled() else '本机 OCR 不可用'
+            reason = 'OCR 已被 PDF_OCR=0 关闭' if not ocr_enabled() else 'OCR 不可用'
             raise Problem(
                 f'扫描版 PDF 没有可提取文字（{doc.page_count} 页中 {len(need_ocr)} 页为空）。'
                 f'{reason}，不会生成空 Markdown 冒充成功。'
-                '请启用本机 OCR（PDF_OCR=1），或先用 MinerU 生成草稿 Markdown 后在“教材 MD 转教案 Word”页上传；'
+                '请启用 OCR（PDF_OCR=1），或先用 MinerU 生成草稿 Markdown 后在“教材 MD 转教案 Word”页上传；'
                 '也可以上传文字版 PDF。',
                 code='E_OCR_REQUIRED',
             )

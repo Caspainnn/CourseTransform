@@ -45,7 +45,7 @@
     pdfFile:null, activePdf:null, pdfTimer:null,
     artifacts:[], selectedArtifacts:new Set(),
     textbookFile:null, templates:[], images:[], imageCaptions:{}, knowledgeRefs:[], refRows:[], knowledgeCache:[], refChoice:{artifacts:new Set(), knowledge:new Set()},
-    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, docxBlocks:null, docxIndex:0, docxDirty:false,
+    activeLesson:null, lessonTimer:null, wordStageHidden:false, wordStartedAt:0, wordClock:null, lessonIndex:1, lessonMode:"render", lessonText:"", docxBlocks:null, docxIndex:0, docxDirty:false,
     initialized:{pdf:false, word:false}
   };
 
@@ -140,8 +140,8 @@
     if (job && job.status === "queued"){ pct = 5; label = "任务排队中…"; }
     if (/启动解析服务/.test(all)){ step = 1; pct = Math.max(pct, 26); label = "解析服务正在还原版面、图片与公式…"; }
     if (/解析服务完成/.test(all)){ step = 3; pct = Math.max(pct, 90); label = "解析完成，正在整理章节…"; }
-    if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = Math.max(pct, 18); label = "检测到扫描页，启动本机 OCR…"; }
-    const ocr = [...all.matchAll(/本机 OCR 第 (\d+)\/(\d+) 页/g)].pop();
+    if (/检测到 \d+\/\d+ 页无可用文字/.test(all)){ step = 1; pct = Math.max(pct, 18); label = "检测到扫描页，启动 OCR…"; }
+    const ocr = [...all.matchAll(/OCR 识别第 (\d+)\/(\d+) 页/g)].pop();
     if (ocr){
       const done = Number(ocr[1]), total = Math.max(1, Number(ocr[2]));
       step = 1;
@@ -331,11 +331,8 @@
   }
   function pdfMetaText(job){
     const result = job.result || {};
-    let ocr = "";
-    if (result.engine === "mineru") ocr = ` · 解析服务 ${result.mineruTier || "standard"}${result.mineruSeconds ? "（" + Math.round(result.mineruSeconds) + "s）" : ""}`;
-    else if (result.ocr) ocr = ` · 本机 OCR ${result.ocrPages ?? ""} 页${result.ocrConfidence ? "（均值 " + result.ocrConfidence + "）" : ""}`;
-    const edited = (job.chapters || []).some(item => item.edited) ? " · 含本机修订" : "";
-    return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${ocr}${edited} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
+    const edited = (job.chapters || []).some(item => item.edited) ? " · 含修订" : "";
+    return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${edited}`;
   }
   function renderPdfNav(job){
     const select = $("#pdfDocSelect");
@@ -925,10 +922,8 @@
       $("#wordState").textContent = "";
       await refreshWordJobs();
       state.artifacts = await api("/api/pipeline/artifacts?stage=pdf2md"); renderWordRefs();
-      if (job.status === "succeeded"){
-        toast("全部学时生成完成");
-        setTimeout(()=>{ const box = $("#wordResults"); if (box && !box.hidden) box.scrollIntoView({behavior:"smooth", block:"start"}); }, 120);
-      }
+      if ((job.docx_files || []).length) await showLessonStage(job);
+      if (job.status === "succeeded") toast("全部学时生成完成");
       else if (job.status === "partial_failed") toast("部分章节失败；成功学时仍可下载与送入 PPT");
       else if (job.status === "failed") toast("生成失败：" + (job.error || "查看任务日志"));
     } catch (error) { showWordError(error.message); }
@@ -949,7 +944,7 @@
   function showWordProgress(job){
     $("#wordPageHead").hidden = true;
     $("#wordStageGrid").hidden = true;
-    $("#wordResults").hidden = true;
+    $("#lessonStage").hidden = true;
     $("#wordProgressStage").hidden = false;
     $("#wordProgressTitle").textContent = "正在生成教案";
     $("#wordProgressFile").textContent = job.source?.textbookName || job.id || "";
@@ -984,6 +979,7 @@
   }
   function hideWordProgress(){
     $("#wordProgressStage").hidden = true;
+    $("#lessonStage").hidden = true;
     $("#wordPageHead").hidden = false;
     $("#wordStageGrid").hidden = false;
   }
@@ -1001,7 +997,7 @@
   }
 
   function renderLessonJob(job){
-    $("#wordJobMeta").textContent = `${job.id} · ${fmtTime(job.created_at)}`;
+    $("#wordJobMeta").textContent = fmtTime(job.created_at);
     $("#wordError").hidden = !job.error;
     $("#wordError").textContent = job.error || "";
     const logBox = $("#wordLog");
@@ -1025,40 +1021,85 @@
         ${chapter.downloads ? `<div class="bar-actions">${Object.entries(chapter.downloads).map(([key,url])=>`<a class="btn btn-sm" href="${esc(url)}" download>${key==="plan"?"课时 JSON":key==="review"?"质检报告":key==="acceptance"?"验收报告":"配图说明"}</a>`).join("")}</div>` : ""}
       </div>`).join("") : '<div class="empty-ref">生成后在此查看章节与学时状态</div>';
 
-    const files = job.docx_files || [];
-    $("#wordResultMeta").textContent = `${files.length} 份 Word · 模型：${job.api?.label || "-"}${job.source?.textbookName ? " · 教材：" + job.source.textbookName : ""}`;
-    $("#wordResults").hidden = !files.length;
-    $("#wordDocx").innerHTML = files.map(item => `
-      <article class="result-card">
-        <h3>${esc(item.title)}</h3>
-        <div class="rc-meta">${esc(item.chapter_id || "")} · ${badge(item.status)}${item.revision ? ` · 修订 r${item.revision}` : ""}</div>
-        <div class="bar-actions">
-          <button class="btn btn-sm" data-docx-edit="${item.index}">编辑</button>
-          <a class="btn btn-sm" href="${esc(item.url)}" download>下载 DOCX</a>
-          ${item.previewUrl ? `<a class="btn btn-sm" href="${esc(item.previewUrl)}" target="_blank" rel="noopener">查看中间稿</a>` : ""}
-          <button class="btn btn-sm btn-accent" data-docx-handoff="${item.index}" ${["ok","ok_with_warnings"].includes(item.status) ? "" : "disabled title='质检未通过，不能送入 PPT'"}>送入 PPT</button>
-        </div>
-      </article>`).join("");
   }
 
-  $("#wordDocx").addEventListener("click", async (event)=>{
-    const edit = event.target.closest("[data-docx-edit]");
-    if (edit){
-      try { await openDocxEditor(Number(edit.dataset.docxEdit)); }
-      catch (error) { toast(error.message); }
-      return;
-    }
-    const handoff = event.target.closest("[data-docx-handoff]");
-    if (!handoff || !state.activeLesson) return;
-    handoff.disabled = true;
+  async function handoffLesson(index, button){
+    if (!state.activeLesson) return;
+    if (button) button.disabled = true;
     try {
-      const artifact = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/artifact/${handoff.dataset.docxHandoff}`, "POST", {});
+      const artifact = await api(`/api/pipeline/lesson/jobs/${state.activeLesson.id}/artifact/${index}`, "POST", {});
       const result = await api("/api/pipeline/handoff/ppt", "POST", {artifactId:artifact.id});
       if (window.Workbench) await window.Workbench.showPptWithRefs(result.refs.map(item=>item.id), result.topic);
       toast(`已送入 PPT：${result.refs.length} 份资料，确认大纲后再制作`);
     } catch (error) {
-      showWordError(error.message);
-    } finally { handoff.disabled = false; }
+      toast(error.message);
+    } finally { if (button) button.disabled = false; }
+  }
+
+  function lessonFile(index){
+    return (state.activeLesson?.docx_files || []).find(item => Number(item.index) === Number(index)) || null;
+  }
+  async function selectLessonDocx(index, force){
+    const item = lessonFile(index);
+    if (!item) return;
+    state.lessonIndex = item.index;
+    const select = $("#lessonDocSelect");
+    if (select) select.value = String(item.index);
+    $("#lessonDocStatus").textContent = `${item.revision > 1 ? "修订 r" + item.revision + " · " : ""}${badge(item.status).replace(/<[^>]+>/g, "")}`;
+    const response = await fetch(item.previewUrl, {cache:"no-store"});
+    if (!response.ok) throw Error("读取教案内容失败");
+    state.lessonText = await response.text();
+    setLessonMode(state.lessonMode, true);
+    $("#lessonDocDownload").onclick = ()=>{ window.location.href = item.url; };
+    $("#lessonDocEdit").onclick = ()=>openDocxEditor(item.index).catch(error=>toast(error.message));
+    $("#lessonDocHandoff").onclick = (event)=>handoffLesson(item.index, event.currentTarget);
+    $("#lessonDocHandoff").disabled = !["ok","ok_with_warnings"].includes(item.status);
+    $("#lessonDocHandoff").title = $("#lessonDocHandoff").disabled ? "质检未通过，不能送入 PPT" : "";
+  }
+  function setLessonMode(mode, silent){
+    state.lessonMode = mode;
+    document.querySelectorAll("[data-lesson-view]").forEach(btn=>{
+      const active = btn.dataset.lessonView === mode;
+      btn.classList.toggle("on", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    $("#lessonDocRender").hidden = mode !== "render";
+    $("#lessonDocText").hidden = mode !== "text";
+    if (mode === "render"){
+      $("#lessonDocRender").innerHTML = window.PipelineMD
+        ? window.PipelineMD.render(state.lessonText, {jobId: "", index: 0})
+        : `<pre>${esc(state.lessonText)}</pre>`;
+    } else {
+      $("#lessonDocText").textContent = state.lessonText;
+    }
+    if (!silent) $("#lessonDocRender").scrollTop = 0;
+  }
+  async function showLessonStage(job){
+    state.activeLesson = job;
+    const files = job.docx_files || [];
+    if (!files.length) return;
+    $("#wordPageHead").hidden = true;
+    $("#wordStageGrid").hidden = true;
+    $("#wordProgressStage").hidden = true;
+    $("#lessonStage").hidden = false;
+    $("#lessonTitle").textContent = job.source?.textbookName || "生成的教案";
+    $("#lessonMeta").textContent = `${files.length} 份 Word${job.source?.textbookName ? " · " + job.source.textbookName : ""}`;
+    const select = $("#lessonDocSelect");
+    select.innerHTML = files.map(item => `<option value="${item.index}">${esc(item.title)}${item.revision > 1 ? " · r" + item.revision : ""}</option>`).join("");
+    select.hidden = files.length < 2;
+    const index = files.some(item => Number(item.index) === Number(state.lessonIndex)) ? state.lessonIndex : files[0].index;
+    await selectLessonDocx(index, true);
+  }
+  $("#lessonBack").addEventListener("click", ()=>{
+    $("#lessonStage").hidden = true;
+    $("#wordPageHead").hidden = false;
+    $("#wordStageGrid").hidden = false;
+  });
+  $("#lessonDocSelect").addEventListener("change", (event)=>{
+    selectLessonDocx(Number(event.currentTarget.value)).catch(error=>toast(error.message));
+  });
+  document.querySelectorAll("[data-lesson-view]").forEach(btn=>{
+    btn.addEventListener("click", ()=>setLessonMode(btn.dataset.lessonView));
   });
 
   /* ---------- lesson DOCX editor ---------- */
@@ -1130,6 +1171,7 @@
       state.docxDirty = false;
       closeDocxEditor(true);
       renderLessonJob(result.job);
+      if (!$("#lessonStage").hidden) await showLessonStage(result.job);
       toast(`已保存修订 r${result.edit.revision}（${result.edit.changed} 处）`);
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; button.textContent = "保存修订"; }
