@@ -220,3 +220,10 @@ scripts/                doctor、真实/冒烟回归、演示 PDF 生成
 工具调用/图片输入/思考模式/自定义协议，以及输入/输出上下文长度。保存后可按“推理/视觉”用途启用，
 调用优先级为“当前用户启用项 → 服务端 `.env` 默认（`LLM_MODEL` / `LLM_OUTLINE_JSON_MODEL`）”。
 API Key 只存本账户目录，列表接口不回传明文。
+
+
+## 作品演示与说明
+
+- 一键演示：`powershell -ExecutionPolicy Bypass -File project/demo/run_demo.ps1`（账号 `demo / Demo12345!`）
+- 说明文档：`readme/01-环境依赖与安装.md`、`02-部署与运行.md`、`03-开源组件说明.md`、`04-码道应用总结.md`
+- 演示截图：`project/demo/screenshots/`
