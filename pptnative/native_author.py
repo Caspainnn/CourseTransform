@@ -567,6 +567,38 @@ def fit_text_to_frames(svg, indices=None):
     return ET.tostring(root, encoding="unicode")
 
 
+def fit_images_to_canvas(svg, margin=12):
+    """Keep newly composed images inside the slide canvas without changing bytes."""
+    root = ET.fromstring(svg)
+    try:
+        x0, y0, width, height = map(float, root.get("viewBox", "0 0 1280 720").split())
+    except ValueError:
+        return svg
+    changed = False
+    for image in root.iter(f"{{{SVG}}}image"):
+        if image.get("data-pptx-source-ref"):
+            continue
+        try:
+            x, y = float(image.get("x", 0)), float(image.get("y", 0))
+            w, h = float(image.get("width", 0)), float(image.get("height", 0))
+        except (TypeError, ValueError):
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        ratio = min(1.0, (width - 2 * margin) / w, (height - 2 * margin) / h)
+        if ratio < 1.0:
+            w, h = w * ratio, h * ratio
+            image.set("width", f"{w:.2f}")
+            image.set("height", f"{h:.2f}")
+            changed = True
+        nx, ny = min(max(x, margin), width - w - margin), min(max(y, margin), height - h - margin)
+        if (nx, ny) != (x, y):
+            image.set("x", f"{nx:.2f}")
+            image.set("y", f"{ny:.2f}")
+            changed = True
+    return ET.tostring(root, encoding="unicode") if changed else svg
+
+
 def validate_text_capacity(svg, title, strict_vertical=False, baseline=None, indices=None, check_canvas=False, tolerance=0.0):
     from .native import SKILL
     if str(SKILL / "scripts") not in sys.path:
@@ -1328,6 +1360,8 @@ def run(job, version, contract, source, parent=None):
                 root = ET.fromstring(base)
                 root.extend(fragment)
                 runtime_ids(root)
+                fitted = fit_images_to_canvas(ET.tostring(root, encoding="unicode"))
+                root = ET.fromstring(fitted)
                 validate_text_capacity(ET.tostring(root, encoding="unicode"), page["title"], strict_vertical=True, check_canvas=True)
             # Reject semantic deletion before exporting; actual PPTX coverage is
             # independently checked again after PowerPoint renders the result.
@@ -1434,7 +1468,7 @@ def run(job, version, contract, source, parent=None):
             root = ET.fromstring(base)
             root.extend(content_nodes(result["content_svg"], base))
             runtime_ids(root)
-            svg = ET.tostring(root, encoding="unicode")
+            svg = fit_images_to_canvas(ET.tostring(root, encoding="unicode"))
         result["notes"] = retained_notes(result["notes"], page, material)
         return page["id"], svg, result
 
