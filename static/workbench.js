@@ -481,9 +481,22 @@
 
   /* ================= 单页修改 ================= */
 
+  function setPreviewBusy(on,label){
+    const overlay=$("#previewBusy"); if(!overlay) return;
+    state.reviseBusy=!!on;
+    overlay.hidden=!on;
+    overlay.closest(".preview-frame").classList.toggle("is-busy",!!on);
+    overlay.closest(".preview-frame").setAttribute("aria-busy", on?"true":"false");
+    if(label) $("#previewBusyText").textContent=label;
+    $("#reviseInput").disabled=!!on;
+    $("#btnRevise").disabled=!!on;
+  }
   $("#btnRevise").addEventListener("click", async()=>{
     const text=$("#reviseInput").value.trim(), slide=state.slides[state.current];
     if(!text||!slide){toast("请填写修改要求");return;}
+    if(state.reviseBusy) return;
+    setPreviewBusy(true,`正在修改第 ${state.current+1} 页…`);
+    const guard=setTimeout(()=>{setPreviewBusy(false);toast("修改仍在后台进行，稍后刷新即可查看结果");},10*60*1000);
     try {
       await api(`/api/tasks/${state.taskId}/slides/${state.current}/revise`,"POST",{
         text,pageId:slide.id,base_version:state.version});
@@ -494,6 +507,7 @@
         addChat($("#reviseLog"),pending.question,"ai"); toast(pending.question);
       }
     } catch(error){ report(error); }
+    finally { clearTimeout(guard); setPreviewBusy(false); $("#reviseInput").focus(); }
   });
   async function downloadPPT(confirmVersion=false){
     try {
@@ -922,7 +936,7 @@
     $("#deckVersion").textContent=selected?selected.id+" · "+(STATUS_LABELS[selected.status]||selected.status):"尚未生成";
     $("#saveTime").textContent=new Date(task.updated).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
     const deliverable=selected?.qa_passed&&["ready_for_review","confirmed"].includes(selected.status);
-    $("#btnRevise").disabled=busy||state.version!==task.currentVersion||!deliverable;
+    $("#btnRevise").disabled=busy||state.reviseBusy||state.version!==task.currentVersion||!deliverable;
     $("#btnDownloadTop").disabled=!deliverable;
     $("#btnConfirmDownload").disabled=busy||!deliverable||state.version!==task.currentVersion;
     if(!$("#versionSelect")){
