@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+local-config.json
+data/
+.pptnative-runtime/
+__pycache__/
+*.pyc
+.pytest_cache/
+runtime/
+*.log
+artifacts/
