@@ -336,13 +336,12 @@
     return `${result.pages ?? ""} 页 · ${result.images ?? 0} 张原图 · 共 ${(job.chapters || []).length} 章${ocr}${edited} · ${job.sha256 ? "SHA " + job.sha256.slice(0,12) : ""}`;
   }
   function renderPdfNav(job){
-    const nav = $("#pdfDocNav");
-    if (!nav) return;
-    nav.innerHTML = (job.chapters || []).map(chapter => `
-      <button type="button" data-pdf-chapter="${chapter.index}" class="${chapter.index === state.pdfChapter ? "active" : ""}">
-        <b>${esc(chapter.title)}</b>
-        <span>第 ${pageRange(chapter.pages)} 页 · ${chapter.chars} 字符${Number(chapter.revision || 1) > 1 ? " · 修订 r" + chapter.revision : ""}</span>
-      </button>`).join("");
+    const select = $("#pdfDocSelect");
+    if (!select) return;
+    const chapters = job.chapters || [];
+    select.innerHTML = chapters.map(chapter => `<option value="${chapter.index}">${esc(chapter.title)}${Number(chapter.revision || 1) > 1 ? " · r" + chapter.revision : ""}</option>`).join("");
+    select.hidden = chapters.length < 2;
+    select.value = String(state.pdfChapter);
   }
   function imageUrl(jobId, index, src){
     if (!/^images\//.test(src)) return "";
@@ -462,7 +461,8 @@
     $("#pdfDocImages").hidden = !chapter.imageCount;
     $("#pdfDocImages").textContent = `下载原图 (${chapter.imageCount})`;
     $("#pdfDocDownload").disabled = false;
-    document.querySelectorAll("[data-pdf-chapter]").forEach(btn=>btn.classList.toggle("active", Number(btn.dataset.pdfChapter) === index));
+    const picker = $("#pdfDocSelect");
+    if (picker) picker.value = String(index);
     const key = `${state.pdfJob.id}:${index}:${chapter.revision || 1}`;
     if (state.pdfDocs[key] == null){
       const response = await fetch(`/api/pipeline/pdf/jobs/${state.pdfJob.id}/preview/${index}`, {cache:"no-store"});
@@ -471,8 +471,7 @@
     }
     state.pdfText = state.pdfDocs[key];
     $("#pdfDocEditor").value = state.pdfText;
-    const digits = state.pdfText.length;
-    $("#pdfDocStatus").textContent = `${chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${digits} 字符`;
+    $("#pdfDocStatus").textContent = `${chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${chapter.chars} 字符`;
     setPdfMode(state.pdfMode, true);
   }
   async function showPdfDoc(job){
@@ -497,7 +496,7 @@
     $("#pdfDocMeta").textContent = pdfMetaText(job);
     $("#pdfSendAll").disabled = !(job.chapters && job.chapters.length);
     if (!job.chapters || !job.chapters.length){
-      $("#pdfDocNav").innerHTML = '<div class="empty-ref">没有章节</div>';
+      $("#pdfDocSelect").hidden = true;
       $("#pdfDocRender").innerHTML = '<div class="notice">没有可显示的章节内容。</div>';
       $("#pdfDocText").textContent = "";
       return;
@@ -507,11 +506,16 @@
     await selectPdfChapter(state.pdfChapter, true);
   }
 
-  $("#pdfDocNav").addEventListener("click", async (event)=>{
-    const button = event.target.closest("[data-pdf-chapter]");
-    if (!button) return;
-    try { await selectPdfChapter(Number(button.dataset.pdfChapter)); }
-    catch (error) { toast(error.message); }
+  $("#pdfDocSelect").addEventListener("change", async (event)=>{
+    const select = event.currentTarget;
+    const index = Number(select.value);
+    try {
+      await selectPdfChapter(index);
+      if (state.pdfChapter !== index) select.value = String(state.pdfChapter);
+    } catch (error) {
+      select.value = String(state.pdfChapter);
+      toast(error.message);
+    }
   });
   $("#pdfDocBack").addEventListener("click", ()=>{
     if (state.pdfDirty && !confirm("当前章节有未保存的修改，确定返回？")) return;
@@ -553,7 +557,7 @@
     $("#pdfDocEdit").disabled = false;
     document.querySelectorAll("[data-pdf-view]").forEach(btn=>btn.disabled = false);
     const chapter = pdfChapter();
-    $("#pdfDocStatus").textContent = `${chapter && chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${state.pdfText.length} 字符`;
+    $("#pdfDocStatus").textContent = `${chapter && chapter.revision > 1 ? "修订 r" + chapter.revision + " · " : ""}${chapter ? chapter.chars : state.pdfText.length} 字符`;
     setPdfMode(state.pdfMode, true);
   });
   $("#pdfDocSave").addEventListener("click", async ()=>{
@@ -578,7 +582,7 @@
       $("#pdfDocMeta").textContent = pdfMetaText(job);
       renderPdfNav(job);
       const chapter = pdfChapter();
-      $("#pdfDocStatus").textContent = `修订 r${chapter.revision} · ${text.length} 字符`;
+      $("#pdfDocStatus").textContent = `修订 r${chapter.revision} · ${chapter.chars} 字符`;
       setPdfMode(state.pdfMode, true);
       toast(`已保存修订 r${chapter.revision}`);
       refreshPdfJobs().catch(()=>{});

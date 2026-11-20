@@ -298,7 +298,7 @@ def extract_pdf(pdf_path, out_dir, log=None):
                 suffix += 1
             used_titles.add(name)
             md_path = out_dir / f'{name}.md'
-            md_path.write_text(markdown, encoding='utf-8')
+            md_path.write_text(markdown, encoding='utf-8', newline='\n')
             referenced = sorted({path for page_no in range(1, len(texts) + 1) if page_no in [p[0] for p in chapter['pages']]
                                  for path in images.get(page_no, [])})
             results.append({

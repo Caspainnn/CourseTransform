@@ -1255,13 +1255,13 @@ input[type="range"]::-moz-range-thumb{
             </div>
           </div>
           <div class="doc-stage-body">
-            <aside class="doc-nav" id="pdfDocNav" aria-label="章节目录"></aside>
             <article class="doc-panel">
               <div class="doc-toolbar">
                 <div class="seg" role="tablist" aria-label="视图切换">
                   <button class="seg-btn on" type="button" role="tab" aria-selected="true" data-pdf-view="render">Markdown 渲染</button>
                   <button class="seg-btn" type="button" role="tab" aria-selected="false" data-pdf-view="text">纯文本</button>
                 </div>
+                <select class="chapter-select" id="pdfDocSelect" aria-label="选择章节" hidden></select>
                 <span class="doc-status" id="pdfDocStatus"></span>
                 <div class="bar-actions doc-actions">
                   <button class="btn btn-sm" id="pdfDocEdit">编辑</button>
@@ -1613,14 +1613,10 @@ input[type="range"]::-moz-range-thumb{
 .doc-stage-title h2{font-size:19px;font-weight:600;word-break:break-all;line-height:1.35;}
 .doc-stage-title .hint{margin-top:4px;}
 .doc-stage-head>.bar-actions{margin-left:auto;}
-.doc-stage-body{display:grid;grid-template-columns:228px minmax(0,1fr);gap:16px;align-items:start;}
-.doc-nav{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:7px;position:sticky;top:88px;max-height:calc(100vh - 110px);overflow:auto;}
-.doc-nav button{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:8px;padding:9px 10px;font-size:12px;color:var(--ink-2);line-height:1.45;}
-.doc-nav button:hover{background:#f4f1ea;}
-.doc-nav button.active{background:var(--accent-soft);color:var(--accent-dark);}
-.doc-nav b{display:block;font-weight:600;font-size:12px;word-break:break-all;}
-.doc-nav span{display:block;font-size:10.5px;color:var(--ink-3);margin-top:2px;font-family:var(--mono);}
-.doc-panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;min-width:0;}
+.doc-stage-body{display:block;}
+.chapter-select{max-width:280px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:12px;color:var(--ink-2);}
+.chapter-select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent-soft-h);}
+.doc-panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;min-width:0;max-width:980px;margin:0 auto;}
 .doc-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid var(--line);background:#fbfaf7;}
 .doc-actions{margin-left:auto;}
 .seg{display:inline-flex;background:#efece5;border-radius:9px;padding:2px;gap:2px;}
@@ -1628,12 +1624,14 @@ input[type="range"]::-moz-range-thumb{
 .seg-btn:hover{color:var(--ink);}
 .seg-btn.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(60,50,35,.12);}
 .doc-status{font-size:10.5px;color:var(--sage);font-family:var(--mono);}
-.doc-view{padding:22px 26px;max-height:calc(100vh - 245px);overflow:auto;}
+.doc-view{padding:26px 34px;max-height:calc(100vh - 245px);overflow:auto;overflow-x:hidden;}
+#pdfDocRender{max-width:840px;margin:0 auto;}
+#pdfDocText,#pdfDocEditor{max-width:860px;margin-left:auto;margin-right:auto;}
 .doc-raw,.doc-editor{font-family:var(--mono);font-size:12px;line-height:1.75;white-space:pre-wrap;word-break:break-word;}
-.doc-raw{margin:0;background:#fffdf9;min-height:420px;color:var(--ink-2);}
+.doc-raw{margin:0 auto;background:#fffdf9;min-height:420px;color:var(--ink-2);}
 .doc-editor{display:block;width:100%;border:0;outline:none;resize:vertical;min-height:56vh;background:#fffdf9;color:var(--ink);}
 .doc-edit-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border-top:1px solid var(--line);background:#fbfaf7;}
-.md-body{font-size:13.5px;line-height:1.85;color:var(--ink-2);}
+.md-body{font-size:13.5px;line-height:1.85;color:var(--ink-2);overflow-wrap:anywhere;}
 .md-body h1,.md-body h2,.md-body h3,.md-body h4{margin:1.1em 0 .45em;line-height:1.35;color:var(--ink);font-weight:600;}
 .md-body h1{font-size:21px;padding-bottom:.35em;border-bottom:1px solid var(--line);}
 .md-body h2{font-size:17px;}
@@ -1651,19 +1649,18 @@ input[type="range"]::-moz-range-thumb{
 .md-body .md-img-cap{display:block;font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-bottom:.8em;}
 .md-body hr{border:0;border-top:1px solid var(--line);margin:1.2em 0;}
 @media (max-width:1024px){
-  .doc-stage-body{grid-template-columns:1fr;}
-  .doc-nav{position:static;display:flex;gap:6px;overflow:auto;max-height:none;padding:6px;}
-  .doc-nav button{min-width:190px;max-width:240px;}
   .doc-view{max-height:none;}
   .doc-editor{min-height:46vh;}
 }
+
 @media (max-width:768px){
   .pdf-progress{padding:24px 16px;}
   .doc-stage-head{gap:10px;}
   .doc-stage-head>.bar-actions{margin-left:0;}
   .doc-toolbar{padding:10px;}
   .doc-actions{margin-left:0;}
-  .doc-view{padding:16px;}
+  .chapter-select{max-width:100%;}
+  .doc-view{padding:18px;}
   .doc-editor{padding:14px;}
 }
 .user-chip{border:0;background:transparent;width:100%;text-align:left;border-radius:var(--radius-sm);cursor:pointer;transition:background .16s ease;}
