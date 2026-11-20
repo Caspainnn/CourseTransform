@@ -595,9 +595,15 @@ def fit_images_to_canvas(svg, margin=12):
         x0, y0, width, height = map(float, root.get("viewBox", "0 0 1280 720").split())
     except ValueError:
         return svg
+    parents = {id(child): node for node in root.iter() for child in node}
     changed = False
     for image in root.iter(f"{{{SVG}}}image"):
         if image.get("data-pptx-source-ref"):
+            continue
+        parent = parents.get(id(image))
+        if parent is not None and parent.tag == f"{{{SVG}}}svg":
+            # Imported crop wrappers require the inner image at 0/0/1/1; clamp the
+            # wrapper below instead of the crop content.
             continue
         try:
             x, y = float(image.get("x", 0)), float(image.get("y", 0))
@@ -617,6 +623,23 @@ def fit_images_to_canvas(svg, margin=12):
             image.set("x", f"{nx:.2f}")
             image.set("y", f"{ny:.2f}")
             changed = True
+    for wrapper in root.iter(f"{{{SVG}}}svg"):
+        if wrapper is root or wrapper.get("data-pptx-source-ref"):
+            continue
+        try:
+            x, y = float(wrapper.get("x", 0)), float(wrapper.get("y", 0))
+            w, h = float(wrapper.get("width", 0)), float(wrapper.get("height", 0))
+        except (TypeError, ValueError):
+            continue
+        if w <= 0 or h <= 0:
+            continue
+        ratio = min(1.0, (width - 2 * margin) / w, (height - 2 * margin) / h)
+        if ratio < 1.0:
+            w, h = w * ratio, h * ratio
+            wrapper.set("width", f"{w:.2f}"); wrapper.set("height", f"{h:.2f}"); changed = True
+        nx, ny = min(max(x, margin), width - w - margin), min(max(y, margin), height - h - margin)
+        if (nx, ny) != (x, y):
+            wrapper.set("x", f"{nx:.2f}"); wrapper.set("y", f"{ny:.2f}"); changed = True
     return ET.tostring(root, encoding="unicode") if changed else svg
 
 
