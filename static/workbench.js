@@ -910,7 +910,7 @@
   }));
 
   let pollEpoch=0, saveTimer=null, formTimer=null, saveChain=Promise.resolve();
-  const STATUS_LABELS={draft:"草稿",outline_ready:"大纲就绪",queued:"排队中",running:"制作中",ready:"待审阅",ready_for_review:"待审阅",building:"制作中",confirmed:"已确认",failed:"失败",interrupted:"已中断",cancelled:"已取消",needs_input:"需要补充意见"};
+  const STATUS_LABELS={cancelling:"正在取消",draft:"草稿",outline_ready:"大纲就绪",queued:"排队中",running:"制作中",ready:"待审阅",ready_for_review:"待审阅",building:"制作中",confirmed:"已确认",failed:"失败",interrupted:"已中断",cancelled:"已取消",needs_input:"需要补充意见"};
   let outlineDirty=false;
   let taskEpoch=0, formDirty=false, formEditSequence=0;
   function markFormDirty(){formDirty=true;formEditSequence++;}
@@ -1008,7 +1008,7 @@
     $("#outlineGen h2").textContent=failed?"大纲处理尚未完成":"正在制作大纲";
     $$(".gen-ring").forEach(x=>x.style.animationPlayState=busy?"running":"paused");
     $("#taskActions").hidden=!(busy||failed);
-    $("#retryTask").hidden=!failed;$("#cancelTask").hidden=task.status!=="queued";
+    $("#retryTask").hidden=!failed;$("#cancelTask").hidden=!["queued","running","cancelling"].includes(task.status);
     const event=task.events?.at(-1);
     const labels=STATUS_LABELS;
     $("#taskStatus").hidden=false;
@@ -1069,7 +1069,19 @@
       <div class="draft-meta">${esc(new Date(t.updated).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false}))}</div><div class="draft-actions"><button class="btn btn-sm btn-primary" data-open-task="${t.id}">继续编辑</button></div></div></article>`).join(""):'<div class="empty-ref">还没有草稿，从新建任务开始</div>';
   }
   $("#retryTask").addEventListener("click",async()=>{try{const task=await api(`/api/tasks/${state.taskId}/resume`,"POST",{});applyTask(task);showPendingOperation(task);await followTask();}catch(e){report(e);}});
-  $("#cancelTask").addEventListener("click",async()=>{try{applyTask(await api(`/api/tasks/${state.taskId}/cancel`,"POST",{}));}catch(e){report(e);}});
+  $("#cancelTask").addEventListener("click",async()=>{
+    if(!confirm("取消当前制作？已生成的内容会保留为候选，可稍后重新制作。")) return;
+    try{
+      let task=await api(`/api/tasks/${state.taskId}/cancel`,"POST",{}); applyTask(task);
+      let tries=0;
+      while(task.status==="cancelling" && tries++<30){
+        await new Promise(r=>setTimeout(r,1000));
+        task=await api(`/api/tasks/${state.taskId}`); applyTask(task);
+      }
+      if(task.status==="cancelling") toast("取消请求已发送，当前步骤结束后生效");
+      else toast("已取消，可以重新制作");
+    }catch(e){report(e);}
+  });
   $("#knowledgeUpload").addEventListener("click",()=>$("#knowledgeFile").click());
   $("#knowledgeFile").addEventListener("change",async e=>{
     const file=e.target.files[0];if(!file)return;

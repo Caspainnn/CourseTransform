@@ -18,6 +18,23 @@ from .planning import create_plan, intake, recognize, revise_plan, validate_plan
 from .quality import REVIEW_VERSION, composite, render
 
 
+class Cancelled(Exception):
+    """Raised cooperatively when the user cancels a long-running task."""
+
+
+def cancel_path(job):
+    return Path(job) / "cancel.requested"
+
+
+def check_cancel(job):
+    if cancel_path(job).exists():
+        raise Cancelled("任务已取消")
+
+
+def clear_cancel(job):
+    cancel_path(job).unlink(missing_ok=True)
+
+
 def event(job, stage, **data):
     record = {"time": datetime.now(timezone.utc).isoformat(), "stage": stage, **data}
     with (job / "events.jsonl").open("a", encoding="utf-8") as log:

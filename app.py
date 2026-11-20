@@ -281,6 +281,7 @@ def create_app(data_dir=None):
                 return
             task.update(status='running', operation=kind, error=None)
             write_task(task)
+            pipeline.clear_cancel(data / 'tasks' / ident / 'kernel')
         try:
             if kind == 'outline':
                 outline_work(task, payload)
@@ -315,8 +316,11 @@ def create_app(data_dir=None):
                         result = pipeline.recheck(kernel, payload['base_version'])
                     else:
                         raise Problem('不支持的操作')
+                pipeline.check_cancel(kernel)
                 task['status'] = 'needs_input' if isinstance(result, dict) and result.get('status') == 'needs_input' else 'ready'
             task['result'] = result
+        except pipeline.Cancelled:
+            task['status'], task['error'] = 'cancelled', None
         except Exception as error:
             task['status'], task['error'] = 'failed', str(error)
         finally:
@@ -753,9 +757,21 @@ def create_app(data_dir=None):
     def cancel(ident):
         with MUTEX:
             task = get_task(ident)
-            if task['status'] != 'queued':
-                raise Problem('仅排队任务可安全取消；运行任务不能强制终止', 409, 'E_BUSY')
-            task.update(status='cancelled', operation=None)
+            if task['status'] not in ('queued', 'running'):
+                raise Problem('当前任务不在执行中', 409, 'E_BUSY')
+            kernel = data / 'tasks' / ident / 'kernel'
+            kernel.mkdir(parents=True, exist_ok=True)
+            (kernel / 'cancel.requested').write_text(now(), encoding='utf-8')
+            if task['status'] == 'queued':
+                task.update(status='cancelled', operation=None, operationId=uuid.uuid4().hex, cancelRequested=True)
+            else:
+                task.update(status='cancelling', cancelRequested=True)
+            state = read(kernel / 'job.json') if (kernel / 'job.json').exists() else {}
+            draft = state.get('current')
+            for folder in sorted((kernel / 'versions').glob('v*')):
+                manifest = read(folder / 'version.json') if (folder / 'version.json').exists() else {}
+                if manifest.get('status') in ('building', 'failed') and (not draft or folder.name == draft):
+                    save(folder / 'version.json', {**manifest, 'status': 'failed', 'error': '已取消'})
             write_task(task)
             return jsonify(project(task))
     @app.get('/api/tasks/<ident>/versions/<vid>/pages/<int:number>.png')

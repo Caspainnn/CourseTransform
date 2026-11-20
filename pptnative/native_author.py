@@ -14,6 +14,7 @@ from PIL import Image
 
 from .models import ROOT, ask, parallel, read, save
 from .native_repair import run_upstream
+from .pipeline import check_cancel
 
 SVG = "http://www.w3.org/2000/svg"
 ET.register_namespace("", SVG)
@@ -972,7 +973,9 @@ def repair_local_text(version, page, material, svg, notes, findings, assets):
 
 def run(job, version, contract, source, parent=None):
     from .native import SKILL
+    check_cancel(job)
     prepare(job, version, contract, source, parent)
+    check_cancel(job)
     workspace = version / "workspace"
     if not parent:
         # A resumed task may have been planned using a later, contradictory vision
@@ -1401,7 +1404,9 @@ def run(job, version, contract, source, parent=None):
         return page["id"], svg, result
 
     def persist(page):
+        check_cancel(job)
         page_id, svg, result = author(page)
+        check_cancel(job)
         with metadata_lock:
             choice = choices[page_id]
             svg = normalize_svg_paint(svg)
@@ -1431,6 +1436,7 @@ def run(job, version, contract, source, parent=None):
             path = workspace / "authoring-svg-flat" / choice["svg"]
             root = runtime_ids(ET.parse(path).getroot())
             path.write_text(ET.tostring(root, encoding="unicode"), encoding="utf-8")
+    check_cancel(job)
     run_upstream(version, "svg_authoring_view.py", [workspace / "authoring-svg-flat", "--refresh-summary"], "author-summary.log")
     run_upstream(version, "svg_quality_checker.py", [workspace, "--roundtrip", "--json"], "author-capacity.log")
     stdout = export_roundtrip(version, workspace, mapping)

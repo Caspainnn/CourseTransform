@@ -16,6 +16,7 @@ from pptx import Presentation
 
 from .api import ROOT, settings
 from .models import read, save
+from .pipeline import check_cancel
 from .planning import intake, recognize, revise_plan, validate_plan
 
 ENGINE = "ppt-master-roundtrip"
@@ -212,6 +213,7 @@ def build(job, contract, parent=None, request=None, version_id=None, review_exis
         instruction = repair_task(version)
     try:
         for attempt in range(3):
+            check_cancel(job)
             event(job, "native-api-worker", version=version_id, attempt=attempt + 1)
             # A fresh final context prevents repeated failed self-diagnoses from anchoring repairs.
             fresh_context = attempt == 2 or (attempt == 0 and resuming_failed_review)
@@ -235,6 +237,7 @@ def build(job, contract, parent=None, request=None, version_id=None, review_exis
                     repair(job, version, contract)
                 else:
                     worker(version, instruction, resume=not fresh_context and bool(worker_session(version)))
+                check_cancel(job)
                 plan = verify_export(version, source, contract)
                 if (version / "qa/export-validation.json").exists():
                     save(version / "qa/export-validation.json", {**read(version / "qa/export-validation.json"), "resolved": True})
