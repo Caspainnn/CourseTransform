@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
+import traceback
 import uuid
 from zipfile import ZipFile
 
@@ -286,6 +287,7 @@ def build(job, contract, parent=None, request=None, version_id=None, review_exis
         event(job, "product-confirmation", version=version_id)
         return version_id
     except Exception as error:
+        (version / "error.log").write_text(traceback.format_exc(), encoding="utf-8")
         manifest = read(version / "version.json")
         save(version / "version.json", {**manifest, "status": "failed", "error": str(error)})
         event(job, "failed", version=version_id, error=str(error))

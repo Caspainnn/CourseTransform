@@ -18,6 +18,8 @@ ET.register_namespace("", SVG)
 ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
 TEXT = re.compile(r"<(?:[\w]+:)?text\b[^>]*>.*?</(?:[\w]+:)?text\s*>", re.S)
 MAX_LAYOUT_REMATCHES = 6
+VISION_FIELDS = ("number", "role", "layout_logic", "capacity", "safe_text_areas",
+                 "decoration_conflicts", "semantic_neutrality", "text_fill_compatible")
 
 
 def route_for(page):
@@ -496,20 +498,73 @@ def title_slots(svg, title):
         sys.path.insert(0, str(SKILL / "scripts"))
     from text_measure import measure_text
     available = slots(svg)
-    max_size = max(float(s["attributes"].get("font-size", 0)) for s in available)
+    # Page numbers and single decorative glyphs are drawn larger than real
+    # headings; letting them set the reference size filtered out every genuine
+    # title slot and burned the whole rematch budget.
+    display = [s for s in available
+               if len((s["text"] or "").strip()) > 1 and any(ch.isalpha() for ch in s["text"])]
+    max_size = max((float(s["attributes"].get("font-size", 0)) for s in display), default=0)
     result = []
     for s in available:
         size = float(s["attributes"].get("font-size", 0))
         owner = next((a for a in s["ancestors"] if a.get("data-pptx-frame")), None)
-        if not owner or size < max_size * .75:
+        inherited = any((a.get("data-pptx-source-ref") or "").startswith(("master:", "layout:")) for a in s["ancestors"])
+        if not owner or inherited or size < max_size * .75:
             continue
         width = float(owner["data-pptx-frame"].split()[2])
-        if measure_text(title, size=size * .9, family="Microsoft YaHei", weight=s["attributes"].get("font-weight", "normal")) <= width:
+        height = float(owner["data-pptx-frame"].split()[3])
+        measured = measure_text(title, size=size * .9, family="Microsoft YaHei", weight=s["attributes"].get("font-weight", "normal"))
+        lines = math.ceil(measured / width) if width else 99
+        rows = int(height // (size * 1.15))
+        # A heading may wrap to two lines when its native frame is tall enough;
+        # long Chinese titles never fit one line on these 16:9 templates.
+        if lines <= 1 or (lines <= 2 and rows >= lines):
             result.append(s["index"])
     return result
 
 
-def validate_text_capacity(svg, title, strict_vertical=False, baseline=None, indices=None, check_canvas=False):
+def fit_text_to_frames(svg, indices=None):
+    """Shrink edited text (within the 90% native floor) until it fits its frame.
+
+    The model reliably lands 1-4% over the frame even after a retry, and both
+    our gate and the upstream quality checker reject that. Fitting here keeps the
+    result deterministic instead of rematching the whole page.
+    """
+    from .native import SKILL
+    if str(SKILL / "scripts") not in sys.path:
+        sys.path.insert(0, str(SKILL / "scripts"))
+    from svg_quality.checker import SVGQualityChecker
+    from svg_to_pptx.drawingml.text_properties import resolve_project_font_sizes, resolve_project_letter_spacings
+    root = ET.fromstring(svg)
+    parents = {id(child): node for node in root.iter() for child in node}
+    for _ in range(3):
+        sizes = resolve_project_font_sizes(root)
+        spacing = resolve_project_letter_spacings(root, sizes)
+        changed = False
+        for index, node in enumerate(root.iter(f"{{{SVG}}}text")):
+            if indices is not None and index not in indices:
+                continue
+            estimated = SVGQualityChecker._estimated_text_bounds(node, parents, sizes, spacing, include_headroom=True)
+            _, frame, _, _ = SVGQualityChecker._roundtrip_text_frame(node, parents)
+            metrics = SVGQualityChecker._bounds_overflow_metrics(estimated, frame) if estimated and frame else None
+            if not metrics or metrics[1] <= 0:
+                continue
+            width = estimated[2] - estimated[0]
+            allowed = frame[2] - frame[0]
+            if width <= 0 or allowed <= 0:
+                continue
+            scale = max(.9, min(.995, allowed / width * .99))
+            for target in (node, *[n for n in node.iter() if n is not node]):
+                size = target.get("font-size")
+                if size:
+                    target.set("font-size", f"{float(size) * scale:.4f}")
+                    changed = True
+        if not changed:
+            break
+    return ET.tostring(root, encoding="unicode")
+
+
+def validate_text_capacity(svg, title, strict_vertical=False, baseline=None, indices=None, check_canvas=False, tolerance=0.0):
     from .native import SKILL
     if str(SKILL / "scripts") not in sys.path:
         sys.path.insert(0, str(SKILL / "scripts"))
@@ -553,7 +608,7 @@ def validate_text_capacity(svg, title, strict_vertical=False, baseline=None, ind
             if not inherited and (a < x - 2 or b < y - 2 or c > x + w + 2 or d > y + h + 2):
                 errors.append(f'Object {label} text {text!r} is outside the canvas; bounds={estimated}, canvas={(x,y,w,h)}')
         metrics = SVGQualityChecker._bounds_overflow_metrics(estimated, frame) if estimated and frame else None
-        if metrics and metrics[1] > 0:
+        if metrics and metrics[1] > tolerance:
             errors.append(f"Object {label} text {text!r} exceeds its native frame horizontally by {metrics[1]:.1%}; bounds={estimated}, frame={frame}")
         baseline_vertical = original_vertical.get(SVGQualityChecker._roundtrip_frame_source_ref(node, parents), 0)
         if metrics and strict_vertical and metrics[2] > baseline_vertical + .05:
@@ -641,14 +696,45 @@ def approved_template_catalog(template, pages=None, origin=None):
     return data if data.get('schema') == 1 and data.get('template_sha256') == digest else None
 
 
+def validated_vision(pages, numbers):
+    """Reject a structurally broken vision batch.
+
+    A model can emit a flattened page (its fields as loose strings) or drop the
+    braces around an object; that still parses as JSON, so the batch must be
+    checked here or the strings reach the layout matcher and crash it.
+    """
+    if not isinstance(pages, list) or len(pages) != len(numbers):
+        raise ValueError(f"Vision pages must be a JSON array of {len(numbers)} objects")
+    for expected, page in zip(numbers, pages):
+        if not isinstance(page, dict):
+            raise ValueError(f"Vision page {expected} must be a JSON object, got {type(page).__name__}")
+        missing = [field for field in VISION_FIELDS if field not in page]
+        if missing:
+            raise ValueError(f"Vision page {expected} is missing fields: {missing}")
+        if page["number"] != expected:
+            raise ValueError(f"Vision page order mismatch: expected {expected}, got {page['number']!r}")
+        if page["capacity"] not in ("low", "medium", "high") or not isinstance(page["text_fill_compatible"], bool):
+            raise ValueError(f"Vision page {expected} has invalid capacity/text_fill_compatible")
+    return pages
+
+
+def complete_vision(pages, items):
+    return (isinstance(pages, list) and all(isinstance(p, dict) for p in pages)
+            and {p.get('number') for p in pages} == {p['number'] for p in items})
+
+
 def visual_catalog(job, version, items):
     approved = approved_template_catalog(job / 'input/template.pptx')
-    if approved and {p['number'] for p in approved['pages']} == {p['number'] for p in items}:
+    if approved and complete_vision(approved.get('pages'), items):
         save(version / 'template-vision-v2.json', approved['pages'])
         save(version / 'template-vision-origin.json', {k: v for k, v in approved.items() if k != 'pages'})
         return approved['pages']
     if (version / "template-vision-v2.json").exists():
-        return read(version / "template-vision-v2.json")
+        cached = read(version / "template-vision-v2.json")
+        if complete_vision(cached, items):
+            return cached
+        # A cache written from a broken batch would replay the same crash; rebuild it.
+        shutil.move(str(version / "template-vision-v2.json"), str(version / "template-vision-invalid.json"))
     batches = [items[i:i + 5] for i in range(0, len(items), 5)]
     def inspect(batch):
         numbers = [p["number"] for p in batch]
@@ -661,9 +747,35 @@ def visual_catalog(job, version, items):
             "这是供文字模型匹配模板的视觉证据，描述真实可用文字区域、遮挡风险和图文关系，"
             "不要拟本次课件内容。不以文本框数量代替实际容量；指出艺术封面是否不适合多条正文。"
         ), {"source_pages": batch}, visual=True,
-            images=[job / "source-preview" / f"template_p{n}.png" for n in numbers], required=("pages",))
+            images=[job / "source-preview" / f"template_p{n}.png" for n in numbers], required=("pages",),
+            validate=lambda data: validated_vision(data["pages"], numbers))
     result = [p for batch in parallel(batches, inspect) for p in batch["pages"]]
+    if not complete_vision(result, items):
+        raise ValueError("Vision catalog lost or duplicated template pages")
+    result.sort(key=lambda page: page["number"])
     save(version / "template-vision-v2.json", result)
+    return result
+
+
+def layout_catalog(items):
+    """Compact text-slot evidence for the layout matcher.
+
+    The raw catalog keeps every SVG ancestor and the full text fragment for each
+    slot. An 81-slide template turns that into a ~620 KB payload which the model
+    gateway rejects with HTTP 400, so send only what page selection needs.
+    """
+    result = []
+    for item in items:
+        slots_ = []
+        for slot in item["text_slots"][:8]:
+            frame = next((a.get("data-pptx-frame") for a in slot.get("ancestors", [])
+                          if a.get("data-pptx-frame")), "")
+            slots_.append({"text": (slot.get("text") or "")[:40],
+                           "font_size": (slot.get("attributes") or {}).get("font-size", ""),
+                           "frame": frame})
+        result.append({"number": item["number"], "slot_count": len(item["text_slots"]),
+                       "estimated_body_character_capacity": item.get("estimated_body_character_capacity"),
+                       "text_slots": slots_})
     return result
 
 
@@ -697,7 +809,19 @@ def prepare(job, version, contract, source, parent=None):
     allowed = {p["number"] for p in vision if p.get("text_fill_compatible") is True and p.get("capacity") != "low"}
     if not parent and not allowed:
         raise ValueError("Qwen found no compatible native text layouts; cannot silently recompose text pages")
+    def heading_fits(number, title):
+        return bool(title_slots((directory / f"slide_{number:02}.svg").read_text(encoding="utf-8"), title))
+    # Text pages can only use a layout whose real heading slot holds the full title;
+    # selecting on body capacity alone lands on pages without any heading and burns
+    # the rematch budget.
+    title_eligible = {p["id"]: sorted(n for n in allowed if heading_fits(n, p["title"]))
+                      for p in changed if not p["asset_ids"]} if not parent else {}
     def validate_choices(data):
+        pages = data.get("pages")
+        if not isinstance(pages, list) or not all(isinstance(p, dict) for p in pages):
+            raise ValueError("Layout selection must be a JSON array of page objects")
+        if any(not isinstance(p.get("id"), str) or type(p.get("source_slide")) is not int for p in pages):
+            raise ValueError("Each layout selection needs a string id and an integer source_slide")
         by_id = {p["id"]: p for p in changed}
         if {p["id"] for p in data["pages"]} != set(by_id):
             raise ValueError("Layout selection must cover each requested page exactly once")
@@ -714,13 +838,23 @@ def prepare(job, version, contract, source, parent=None):
         "正文多时避免仅能承载短标题的艺术封面，避免内容与装饰语义不相关、正文遮挡的布局。"
         "可以等义压缩上屏表达，核心事实不得丢；不足时另选较大真实版式，不靠硬塞或重排文字页解决。"
         "修订只选择本次改动页，保持其他已交付页不动。不要编写SVG。"
-    ), {"requested_pages": changed, "facts": material["facts"], "catalog": items, "visual_evidence": vision,
-        "eligible_text_source_slides": sorted(allowed),
+    ), {"requested_pages": changed, "facts": material["facts"], "catalog": layout_catalog(items), "visual_evidence": vision,
+        "eligible_text_source_slides": sorted(allowed), "title_eligible_source_slides": title_eligible,
         "parent_roster": parent_roster, "request": contract.get("request")}, required=("pages",), timeout=600,
         validate=validate_choices)
     selected = {p["id"]: p for p in choice["pages"]}
     if set(selected) != {p["id"] for p in changed}:
         raise ValueError("Layout match changed the requested page identities")
+    # The matcher may ignore the heading constraint and pick a layout that cannot
+    # hold the title; correcting it here beats failing the whole deck after retries.
+    capacity = {p["number"]: p.get("estimated_body_character_capacity") or 0 for p in items}
+    for page in changed:
+        options = title_eligible.get(page["id"]) or []
+        pick = selected[page["id"]]
+        if options and pick["source_slide"] not in options:
+            best = max(options, key=lambda n: capacity.get(n, 0))
+            pick.update(source_slide=best, rationale=(pick.get("rationale", "") +
+                        f" [corrected to source {best}: only layouts whose heading holds the full title are usable]").strip())
     (version / "authoring-bases").mkdir(exist_ok=True)
     mapping, routes = [], []
     for page in contract["pages"]:
@@ -875,6 +1009,11 @@ def run(job, version, contract, source, parent=None):
             allowed = {p["number"] for p in read(version / "template-vision-v2.json")
                        if p.get("text_fill_compatible") is True and p.get("capacity") != "low"}
         allowed -= tried
+        if not parent:
+            # Only layouts whose real heading can hold this page's title are usable.
+            allowed = {n for n in allowed
+                       if title_slots((workspace / "authoring-svg-flat" / f"slide_{n:02}.svg")
+                                      .read_text(encoding="utf-8"), page["title"])}
         if not allowed:
             raise ValueError(f"{page['id']}: no untried compatible native layout remains")
         candidates = [x for x in catalog(version) if x['number'] in allowed]
@@ -957,6 +1096,12 @@ def run(job, version, contract, source, parent=None):
         base = (version / "authoring-bases" / choice["svg"]).read_text(encoding="utf-8")
         base_digest = hashlib.sha256(base.encode('utf-8')).hexdigest()
         author_stage = f"{page['id']}-{base_digest[:12]}"
+        page_findings_all = [i for i in (qa or {}).get('issues', []) if i['page_id'] == page['id']]
+        if page_findings_all:
+            # A repaired page must not reuse the rejected response: the same stage key
+            # would replay the old text and the reviewer would reject it again.
+            digest = hashlib.sha256(json.dumps(page_findings_all, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            author_stage += f"-repair-{digest[:8]}"
         facts = {ref: material["facts"][ref] for ref in page["point_ids"]}
         mode = route_for(page)
         instruction = (
@@ -971,6 +1116,9 @@ def run(job, version, contract, source, parent=None):
         )
         if parent and contract.get('request', {}).get('kind') == 'edit_page':
             instruction += '\n教师对本页的修改要求：' + contract['request']['instruction'] + '。保留完整事实合同、素材身份与教师备注。'
+        if page_findings_all:
+            instruction += ('\n本轮必须修复质检问题：' + '；'.join(i['evidence'] for i in page_findings_all) +
+                            '。缺失的对象、主语、条件与关键操作必须逐字出现在本页上屏文本中，不能只写在备注里。')
         if mode == "template-fill":
             eligible_titles = title_slots(base, page["title"])
             with metadata_lock:
@@ -984,7 +1132,7 @@ def run(job, version, contract, source, parent=None):
                         "识别真实模板页中全页主标题或顶部章节标签对应的text索引。返回indices数组和reason。"
                         "不要选正文小标题、图内标签、角落细目。PPTNative会用合同完整标题替换主标题，不能留旧章节字样而把新标题塞进正文。"
                     ), {"slots": slots(base)}, visual=True, images=[reference], required=("indices", "reason"))
-            eligible_titles = sorted(set(eligible_titles).intersection(heading["indices"]))
+            eligible_titles = sorted(set(eligible_titles).intersection(heading["indices"])) or eligible_titles
             if not eligible_titles:
                 rematch(page, "Selected source has no heading slot that can contain the full title")
                 return author(page)
@@ -1036,17 +1184,55 @@ def run(job, version, contract, source, parent=None):
             payload["title_eligible_indices"] = eligible_titles
         for asset in payload['assets'].values():
             asset['minimum_display_height'] = round(asset['minimum_display_width'] * asset['height'] / asset['width'], 2)
+        inherited_slots = {s["index"]: s["text"] for s in slots(base)
+                           if any((a.get("data-pptx-source-ref") or "").startswith(("master:", "layout:"))
+                                  for a in s["ancestors"])} if mode == "template-fill" else {}
+        semantic_text_ids = {n.get("id") for n in ET.fromstring(base).iter()
+                             if n.get("data-pptx-semantic-object")
+                             and any(t.tag.rsplit("}", 1)[-1] == "text" and "".join(t.itertext()).strip()
+                                     for t in n.iter())} if mode == "template-fill" else set()
         def validate(data):
             if mode == "template-fill":
-                candidate_svg = apply_text_edits(base, data['edits'])
+                # Master/layout text (page number, footer) is shared structure; editing it
+                # makes the exporter reject the whole page as an inherited-object change.
+                changed_inherited = []
+                for edit in data["edits"]:
+                    if edit["index"] not in inherited_slots:
+                        continue
+                    text = "".join(ET.fromstring(
+                        f'<svg xmlns="{SVG}">{edit["xml"]}</svg>')[0].itertext()) if edit.get("xml") else ""
+                    if text != inherited_slots[edit["index"]]:
+                        changed_inherited.append(edit["index"])
+                if changed_inherited:
+                    raise ValueError(f"[LAYOUT] Slots {changed_inherited} belong to the master/layout and cannot be "
+                                     "edited or cleared. Put titles and body text in slide-local slots only; keep "
+                                     "page numbers and footers untouched.")
+                candidate_svg = fit_text_to_frames(apply_text_edits(base, data['edits']),
+                                                  {e["index"] for e in data["edits"] if e.get("xml")})
+                emptied = [node.get("id") for node in ET.fromstring(candidate_svg).iter()
+                           if node.get("id") in semantic_text_ids
+                           and not any("".join(t.itertext()).strip() for t in node.iter()
+                                       if t.tag.rsplit("}", 1)[-1] == "text")]
+                if emptied:
+                    raise ValueError(f"[LAYOUT] Shapes {emptied} are native semantic text shapes; an empty body "
+                                     "cannot be exported. Keep a short visible label or move the meaning there, "
+                                     "never clear these slots. Clear only decorative non-semantic placeholders.")
                 title_edits = [e for e in data["edits"] if e["xml"] and "".join(ET.fromstring(
                     f'<svg xmlns="{SVG}">{e["xml"]}</svg>')[0].itertext()).strip() == page["title"]]
                 if not any(e["index"] in eligible_titles for e in title_edits):
                     raise ValueError(f"[LAYOUT] The complete exact title must replace a suitable heading slot from {eligible_titles}, not a generic PART label or a small text label")
-                validate_text_capacity(candidate_svg, page["title"], strict_vertical=True, baseline=base)
+                validate_text_capacity(candidate_svg, page["title"], strict_vertical=True, baseline=base,
+                                       indices={e["index"] for e in data["edits"] if e.get("xml")}, tolerance=0)
             else:
                 fragment = content_nodes(data["content_svg"], base)
                 validate_asset_references(fragment, payload["assets"])
+                # Local paint servers (gradients/patterns) in appended content lose their
+                # definitions during round-trip materialization and fail export.
+                if any("url(#" in (n.get("fill") or "") or "url(#" in (n.get("stroke") or "")
+                       or "url(#" in (n.get("style") or "")
+                       for top in fragment for n in top.iter()):
+                    raise ValueError("New compositions must use solid #RRGGBB fills (opacity is allowed), "
+                                     "not gradient defs or url(#id) paint references; flat color blocks export reliably.")
                 if any(n.get("data-pptx-source-ref") for top in fragment for n in top.iter()):
                     raise ValueError("New image compositions must not invent native source identity")
                 if any(0x1F000 <= ord(c) <= 0x1FAFF for top in fragment for c in ''.join(top.itertext())):
@@ -1077,7 +1263,7 @@ def run(job, version, contract, source, parent=None):
         metadata_only = error and any(message in error.get("error", "") for message in
                                       ("requires an id", "at most one slide solid background", "invalid nested SVG crop wrapper"))
         cache_allowed = not qa and not choice.get("rematch_count") and (not (error and not error.get("resolved")) or metadata_only)
-        if cached.exists() and not cache_allowed:
+        if cached.exists() and not cache_allowed and not page_findings_all:
             payload["previous_invalid_result"] = read(cached)
         recent_raw = sorted([*(version / 'api/author').glob(f'{author_stage}.*.raw.txt'),
                              *(version / 'api/author-fresh').glob(f'{author_stage}.*.raw.txt')],
@@ -1152,7 +1338,8 @@ def run(job, version, contract, source, parent=None):
                     rematch(page, str(api_error))
                     return author(page)
         if mode == "template-fill":
-            svg = apply_text_edits(base, result["edits"])
+            svg = fit_text_to_frames(apply_text_edits(base, result["edits"]),
+                                     {e["index"] for e in result["edits"] if e.get("xml")})
         else:
             root = ET.fromstring(base)
             root.extend(content_nodes(result["content_svg"], base))
